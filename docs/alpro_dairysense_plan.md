@@ -1,0 +1,801 @@
+# Alpro → DairySense Milk Data Converter
+
+## 1. Project Overview
+
+Build a Flutter desktop application, primarily targeting Windows, that acts as a local data bridge between:
+
+- **Alpro**: exports animal/milking reports as HTML.
+- **DairySense**: manages the herd and imports milking data from a specific Excel format.
+
+The application must:
+
+1. Accept an Alpro HTML report.
+2. Parse all available records.
+3. Accept an optional Excel file containing the **current DairySense cow numbers**.
+4. Filter Alpro records using that list.
+5. Export only matching cows into the DairySense Excel format.
+6. Ask the user for the output folder every time.
+7. Remember the last successfully imported cow-number list.
+
+The application is local-first. No backend, login, cloud database, or network service is required for the MVP.
+
+---
+
+## 2. Critical Business Rule: Cow List Is a Filter, Not a Mapping
+
+> **Important invariant:** The number of cows in the cow-list Excel file is **not fixed** and must never be hard-coded. It may increase, decrease, or otherwise change over time. The application must always use whatever valid cow numbers are present in the latest/current list.
+
+
+The cow-number Excel file is **not**:
+
+```text
+Alpro Cow Number → DairySense Cow Number
+```
+
+It is only a list of cow numbers that should be included.
+
+Example:
+
+```text
+Alpro HTML:
+5
+8
+12
+15
+20
+31
+44
+...
+
+Current DairySense Cow List:
+5
+12
+20
+31
+44
+...
+
+Output:
+Only Alpro records for:
+5, 12, 20, 31, 44, ...
+```
+
+The cow number itself is the matching key. The row order is irrelevant.
+
+---
+
+## 3. Current Cow List Lifecycle
+
+The current cow list changes over time.
+
+### New list supplied
+
+When the user imports a new cow-list Excel:
+
+1. Validate it.
+2. Extract cow numbers.
+3. Save it locally.
+4. Replace the previous current list.
+5. Use the new list for the current conversion.
+
+A failed/invalid update must **never destroy the previous valid list**.
+
+### No new list supplied
+
+If a previous valid list exists, use it automatically.
+
+Therefore:
+
+```text
+New list supplied
+    → validate
+    → save
+    → use newest list
+
+No new list
+    → use last saved list
+```
+
+### First use
+
+If no list has ever been saved and the user attempts conversion without one:
+
+- Do not export all Alpro records.
+- Explain that a cow list is required.
+- Ask the user to import one.
+
+---
+
+## 4. Missing Selected Cows
+
+If a cow number exists in the current DairySense list but does not exist in the Alpro HTML:
+
+- Detect it.
+- Show the missing cow numbers.
+- Ask the user before continuing.
+
+Example:
+
+```text
+Some selected cows were not found in the Alpro report.
+
+Missing:
+44
+
+[ Cancel ] [ Continue ]
+```
+
+Rules:
+
+- Cancel → no output is generated.
+- Continue → export the cows that were found.
+- Never create fake rows.
+- Never silently ignore missing selected cows.
+
+---
+
+## 5. Input: Alpro HTML
+
+The supplied Alpro report contains approximately 147 records.
+
+Relevant fields identified so far:
+
+- `Cow No.`
+- `Group No.`
+- `Transp. No.`
+- `Milk Yield`
+- `Corrected Yield`
+- `ID Time`
+- `Milk Start Time`
+- `Milk Dur.`
+- `MPC Address`
+- `Storage Position`
+
+The parser should use the HTML structure and column names rather than fragile regex/position assumptions.
+
+Required behavior:
+
+- Parse the HTML document.
+- Locate the relevant table.
+- Identify columns by their headers.
+- Normalize values.
+- Validate required fields.
+- Produce domain records independent of Flutter UI.
+
+---
+
+## 6. Input: Cow-Number Excel
+
+The cow-number Excel is the filter list.
+
+Conceptually:
+
+```text
+Cow Number
+-----------
+5
+12
+20
+31
+44
+...
+```
+
+Requirements:
+
+- Read cow numbers.
+- Ignore blank rows.
+- Detect invalid values.
+- Normalize values consistently with Alpro `Cow No.`.
+- Deduplicate internally.
+- Preserve numeric identity.
+- Do not interpret the list as a mapping.
+
+The exact sample workbook structure should be inspected during Spec Kit research.
+
+---
+
+## 7. Output: DairySense Excel
+
+The generated workbook must follow the supplied DairySense import format.
+
+Required columns:
+
+| Output Column | Rule |
+|---|---|
+| `Date` | Date from Alpro report |
+| `Session` | Session from Alpro report |
+| `UnitNo` | Alpro `MPC Address` |
+| `CowNumber` | Alpro `Cow No.` |
+| `Milking Time` | Alpro `Milk Dur.` converted to seconds |
+| `Milk yield` | Alpro `Milk Yield` |
+| `Conductivity` | Always `0` |
+| `temperature` | Always `0` |
+
+The exact workbook structure, sheet name, data types, and formatting should be verified against the supplied DairySense template during planning.
+
+---
+
+## 8. Transformation Rules
+
+### CowNumber
+
+```text
+Alpro.Cow No. → DairySense.CowNumber
+```
+
+### Milk yield
+
+```text
+Alpro.Milk Yield → DairySense.Milk yield
+```
+
+### UnitNo
+
+```text
+Alpro.MPC Address → DairySense.UnitNo
+```
+
+### Milking Time
+
+Convert `Milk Dur.` from `HH:MM:SS` into total seconds.
+
+Example:
+
+```text
+00:03:00 → 180
+```
+
+Formula:
+
+```text
+hours × 3600 + minutes × 60 + seconds
+```
+
+Missing/invalid duration must be handled gracefully and specified before implementation.
+
+### Conductivity
+
+Always:
+
+```text
+0
+```
+
+### temperature
+
+Always:
+
+```text
+0
+```
+
+### Date
+
+Extract from the Alpro report. Do not use the computer's current date.
+
+### Session
+
+Extract from the Alpro report. Do not hard-code `Session 1` if the report can contain another session.
+
+---
+
+## 9. Complete Conversion Workflow
+
+```text
+Select Alpro HTML
+        ↓
+Parse HTML
+        ↓
+Load saved current cow list
+        ↓
+Optionally import new cow list
+        ↓
+Validate and save new list if supplied
+        ↓
+Filter Alpro records by Cow No.
+        ↓
+Detect selected cows missing from Alpro
+        ↓
+Ask user whether to continue if any are missing
+        ↓
+Transform matching records
+        ↓
+Validate output data
+        ↓
+Create DairySense XLSX
+        ↓
+Ask user for output folder
+        ↓
+Save XLSX
+        ↓
+Show conversion summary
+```
+
+Do not partially create the final workbook before validation is complete.
+
+---
+
+## 10. Output Folder
+
+The destination folder must be selected by the user **every time**.
+
+Do not silently use Downloads, Desktop, Documents, or the application folder.
+
+Suggested filename:
+
+```text
+DairySense_Import_YYYY-MM-DD.xlsx
+```
+
+The exact naming convention can be finalized during clarification.
+
+---
+
+## 11. UI Requirements
+
+The initial Windows UI should be simple.
+
+Suggested main screen:
+
+```text
+┌──────────────────────────────────────────────┐
+│          ALPRO → DAIRYSENSE                  │
+│                                              │
+│ Alpro HTML                                   │
+│ [ Select HTML File ]                         │
+│                                              │
+│ Current Cow List                             │
+│ ✓ the current set of cows loaded                             │
+│ Last updated: <date/time>                    │
+│ [ Update Cow List ]                          │
+│                                              │
+│              [ CONVERT ]                     │
+│                                              │
+│ Status                                       │
+│ Alpro records:       147                     │
+│ Selected cows:        <count>                     │
+│ Found:                <count>                     │
+│ Missing:               <count>                     │
+└──────────────────────────────────────────────┘
+```
+
+The UI must make clear:
+
+- Which HTML is selected.
+- Which cow list is currently active.
+- When the list was last updated.
+- Whether the list was loaded from saved data.
+- How many records were found/missing.
+
+---
+
+## 12. Architecture
+
+Keep UI and conversion logic separate.
+
+Recommended conceptual structure:
+
+```text
+Presentation
+    ↓
+Application / Use Cases
+    ↓
+Domain
+    ↓
+Infrastructure
+```
+
+### Presentation
+
+- Main screen
+- File pickers
+- Folder picker
+- Missing-cow confirmation
+- Errors
+- Status/progress
+- Conversion summary
+
+### Domain
+
+Possible models:
+
+- `AlproRecord`
+- `CowNumber`
+- `CowList`
+- `DairySenseRecord`
+- `ConversionResult`
+- `ConversionWarning`
+
+### Application
+
+Possible use cases:
+
+- Import Cow List
+- Load Current Cow List
+- Parse Alpro Report
+- Filter Alpro Records
+- Detect Missing Cows
+- Convert Records
+- Generate DairySense Workbook
+- Save Output
+
+### Infrastructure
+
+- HTML parser
+- Excel reader
+- Excel writer
+- Local persistence
+- File/folder picker
+
+The exact package choices should be researched during `/speckit.plan`.
+
+---
+
+## 13. Flutter / Windows Direction
+
+Target:
+
+- Flutter
+- Dart
+- Windows desktop first
+
+Likely technical areas:
+
+- HTML parsing
+- XLSX reading
+- XLSX generation
+- Windows file/folder dialogs
+- Local persistence
+
+Use maintained packages compatible with the project's Flutter/Dart version.
+
+Avoid unnecessary dependencies.
+
+---
+
+## 14. Persistence
+
+Persist locally:
+
+```text
+Current cow numbers
+Last updated timestamp
+```
+
+The data must survive application restarts and Windows reboots.
+
+No remote database is required.
+
+---
+
+## 15. Validation and Error Handling
+
+### Invalid Alpro file
+
+Show a user-friendly message if the file is not a valid Alpro report.
+
+### Missing required columns
+
+At minimum, validate the fields required to generate the DairySense output.
+
+### Invalid cow-list Excel
+
+- Reject the new list.
+- Keep the previous valid list.
+- Explain the problem.
+
+### Duplicate cows
+
+Deduplicate internally and optionally warn.
+
+### Missing selected cows
+
+Ask the user whether to continue.
+
+### Output errors
+
+Handle:
+
+- permission denied
+- invalid destination
+- output file already open
+- existing file
+- filename problems
+
+Never expose raw stack traces as the primary user message.
+
+---
+
+## 16. Testing Strategy
+
+### Unit tests
+
+Cover:
+
+1. Alpro HTML parsing.
+2. Header detection.
+3. Cow-number normalization.
+4. Cow filtering.
+5. Missing-cow detection.
+6. Duration conversion.
+7. Output field mapping.
+8. Conductivity = 0.
+9. temperature = 0.
+10. Duplicate handling.
+11. Invalid values.
+12. Cow-list persistence.
+
+### Integration test
+
+Use the supplied files:
+
+```text
+Alpro HTML
++
+Cow-number Excel
+↓
+DairySense XLSX
+```
+
+Verify:
+
+- number of output rows
+- exported cow numbers
+- milk yields
+- unit numbers
+- milking-time seconds
+- conductivity values
+- temperature values
+- column order
+
+Keep the supplied files as regression fixtures.
+
+---
+
+## 17. Performance
+
+The current example contains about 147 records, but the application should not impose an artificial 147-record limit.
+
+Target comfortable processing of several thousand records.
+
+Avoid freezing the Windows UI during expensive parsing or workbook generation.
+
+---
+
+## 18. Non-Goals for MVP
+
+Do not implement:
+
+- Alpro modification.
+- DairySense modification.
+- Cloud synchronization.
+- Login/account system.
+- Cloud database.
+- Automatic herd synchronization.
+- Alpro-to-DairySense number mapping.
+- Automatic output folder selection.
+- Fake conductivity/temperature values.
+- Manual mapping configuration.
+
+---
+
+## 19. Future Extensibility
+
+Leave room for:
+
+- Other Alpro report formats.
+- Other DairySense import formats.
+- Multiple farm profiles.
+- Multiple saved cow lists.
+- Configurable output mappings.
+- Additional Alpro measurements.
+- Preview before export.
+- Conversion history.
+
+These are not MVP requirements.
+
+---
+
+## 20. MVP Definition of Done
+
+MVP is complete when the user can:
+
+- Run the Windows Flutter application.
+- Select an Alpro HTML report.
+- Import/update the current DairySense cow list.
+- Reuse the last saved cow list automatically.
+- Filter Alpro records by `Cow No.`.
+- Detect missing selected cows.
+- Confirm whether to continue.
+- Generate the DairySense Excel format.
+- Produce:
+  - Date
+  - Session
+  - UnitNo
+  - CowNumber
+  - Milking Time
+  - Milk yield
+  - Conductivity = 0
+  - temperature = 0
+- Choose the output folder every time.
+- Restart the application without losing the current cow list.
+- Pass automated tests for the core conversion pipeline.
+
+---
+
+## 21. Acceptance Scenarios
+
+### A. New cow list
+
+Given an Alpro report with 147 cows and a new cow list containing the current set of cows:
+
+- only matching Alpro records are exported;
+- the new list becomes the saved current list.
+
+### B. Reuse previous list
+
+Given a previously saved cow list and no new list:
+
+- the saved list is automatically used.
+
+### C. Replace list
+
+Given a saved list and a new valid list:
+
+- the new list replaces the old list;
+- the old list remains untouched if validation fails.
+
+### D. Missing cow
+
+Given a cow in the current list that is absent from Alpro:
+
+- show the missing cow;
+- ask whether to continue;
+- Cancel produces no output;
+- Continue exports only found cows.
+
+### E. Output folder
+
+After successful conversion:
+
+- always ask the user for a destination folder;
+- save the generated workbook there.
+
+---
+
+## 22. Open Questions for Spec Kit Clarification
+
+These should be resolved before the final implementation plan:
+
+1. Is the cow number always in one fixed Excel column/header, or should the app detect it automatically?
+2. What exact date format does DairySense require?
+3. Can Alpro reports contain sessions other than Session 1?
+4. What should happen when a selected cow has missing `Milk Dur.`?
+5. What should happen when `Milk Yield` is missing/invalid?
+6. Are cow numbers always integers, or can they contain leading zeros/alphanumeric IDs?
+7. Is there a required output filename?
+8. Must the output workbook have exactly one sheet or a specific sheet name?
+9. Should the app support drag-and-drop?
+10. Should there be a preview of the filtered records before export?
+
+---
+
+## 23. Suggested Feature Structure
+
+Feature name:
+
+```text
+alpro-dairysense-converter
+```
+
+Suggested implementation phases:
+
+### Phase 1 — Foundation
+- Flutter Windows project
+- Architecture
+- File abstractions
+- Error handling foundation
+
+### Phase 2 — Alpro Parser
+- HTML loading
+- Table detection
+- Header detection
+- Alpro model
+- Validation
+
+### Phase 3 — Cow List Management
+- Excel import
+- Cow-number extraction
+- Validation
+- Local persistence
+- Replace current list
+- Last-updated information
+
+### Phase 4 — Filtering and Transformation
+- Cow filtering
+- Missing-cow detection
+- Confirmation dialog
+- Field transformation
+- Duration conversion
+- Default measurement values
+
+### Phase 5 — DairySense Excel
+- Workbook creation
+- Exact columns/order
+- Correct data types
+- Output filename
+- Folder picker
+
+### Phase 6 — Testing and Polish
+- Unit tests
+- Integration tests
+- Error states
+- Status UI
+- Conversion summary
+- Windows packaging
+
+---
+
+## 24. Core Design Principle
+
+Do not build the UI first and then force the conversion logic into it.
+
+The core application should be a deterministic pipeline:
+
+```text
+ALPRO HTML
+    ↓
+Parse
+    ↓
+Validate
+    ↓
+Current Cow List
+    ↓
+Filter
+    ↓
+Transform
+    ↓
+Validate Output
+    ↓
+DairySense XLSX
+```
+
+This pipeline must be independently testable without Flutter UI.
+
+The Flutter UI should orchestrate the pipeline and present status, warnings, confirmations, and results.
+
+---
+
+## 25. Source Files
+
+The project should use the supplied real files as fixtures/reference material:
+
+- Alpro HTML report containing approximately 147 records.
+- DairySense import Excel template.
+- Current DairySense cow-number Excel list.
+
+The implementation must inspect the actual files during Spec Kit research and must not invent their structure.
+
+---
+
+## 26. Definition of Done
+
+The project is done when:
+
+- Windows build succeeds.
+- Supplied Alpro HTML parses correctly.
+- Supplied cow list imports correctly.
+- Only requested cows are exported.
+- Missing cows require confirmation.
+- Latest valid cow list persists.
+- New valid list replaces the old one.
+- Failed list update preserves the old list.
+- DairySense workbook structure is correct.
+- Conductivity = 0.
+- temperature = 0.
+- Milk duration converts correctly to seconds.
+- Output folder is selected every time.
+- Invalid input does not crash the app.
+- Automated tests cover the transformation rules.
+- End-to-end conversion passes using the supplied sample files.
