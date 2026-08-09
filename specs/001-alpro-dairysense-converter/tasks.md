@@ -27,9 +27,9 @@
 
 **Purpose**: Project initialization and dependencies
 
-- [ ] T001 Add the 5 dependencies with `flutter pub add html excel file_picker path_provider path` (updates pubspec.yaml and pubspec.lock)
-- [ ] T002 [P] Delete `test/widget_test.dart` (stale counter-app test that would fail after main.dart is rewritten)
-- [ ] T003 Verify baseline is clean: run `flutter analyze` and `flutter test` and confirm no errors
+- [X] T001 Add the 5 dependencies with `flutter pub add html excel file_picker path_provider path` (updates pubspec.yaml and pubspec.lock)
+- [X] T002 [P] Delete `test/widget_test.dart` (stale counter-app test that would fail after main.dart is rewritten)
+- [X] T003 Verify baseline is clean: run `flutter analyze` and `flutter test` and confirm no errors
 
 **Checkpoint**: Dependencies installed, stale test removed, baseline green.
 
