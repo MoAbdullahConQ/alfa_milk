@@ -372,18 +372,33 @@ The UI must make clear:
 
 ## 12. Architecture
 
-Keep UI and conversion logic separate.
-
-Recommended conceptual structure:
+Clean architecture mirroring the `Uni` reference repo (feature-first,
+flutter_bloc + dartz). Keep UI and conversion logic separate. Dependencies
+point inward: `main.dart` → `features/*/presentation` →
+`features/*/domain` → `features/*/data` → `core/`.
 
 ```text
-Presentation
-    ↓
-Application / Use Cases
-    ↓
-Domain
-    ↓
-Infrastructure
+lib/
+├── main.dart                       # entry + shared MainScreen shell (composition root)
+├── core/                           # shared, framework-independent
+│   ├── errors/
+│   │   ├── failures.dart           # Failure base + typed failures (dartz Either)
+│   │   └── custom_exceptions.dart  # thrown typed errors (AlproParseError, CowListError, ...)
+│   ├── helper_functions/           # error_dialog, file_picker_helper, show_conversion_summary
+│   └── utils/app_utils.dart        # normalizeHeader, normalizeCowNumber, durationToSeconds
+└── features/
+    ├── home/                       # Alpro → DairySense pipeline
+    │   ├── data/
+    │   │   ├── data_sources/       #   alpro_parser.dart, dairy_sense_writer.dart (+ classes)
+    │   │   └── repos/conversion_repo_impl.dart  # implements repo → Either<Failure,T>
+    │   ├── domain/
+    │   │   ├── entities/           #   alpro_record, alpro_report, cow_list, dairy_sense_row, conversion_result
+    │   │   ├── repos/conversion_repo.dart      #   abstract boundary (Either<Failure,T>)
+    │   │   └── use_cases/          #   filter_records, detect_missing_cows, build_dairy_sense_rows, convert_report
+    │   └── presentation/
+    │       ├── manager/conversion_cubit/  #   cubit + part state (Initial/Loading/Success/Failure)
+    │       └── views/              #   main_screen.dart + widgets/ (cow_list_card, report_convert_view)
+    └── cow_list/                   # cow list management (US2, not yet implemented)
 ```
 
 ### Presentation
@@ -395,40 +410,46 @@ Infrastructure
 - Errors
 - Status/progress
 - Conversion summary
+- State managed by a **flutter_bloc Cubit** (`ConversionCubit`), read via
+  `BlocBuilder` / `BlocListener`.
 
 ### Domain
 
-Possible models:
+Entities (feature-scoped under `features/home/domain/entities/`):
 
 - `AlproRecord`
-- `CowNumber`
+- `AlproReport`
 - `CowList`
-- `DairySenseRecord`
+- `DairySenseRow`
 - `ConversionResult`
-- `ConversionWarning`
 
-### Application
+### Application / Use Cases
 
-Possible use cases:
+Thin use-case classes wrapping the abstract `ConversionRepo`
+(`features/home/domain/use_cases/`):
 
-- Import Cow List
-- Load Current Cow List
-- Parse Alpro Report
-- Filter Alpro Records
-- Detect Missing Cows
-- Convert Records
-- Generate DairySense Workbook
-- Save Output
+- `FilterRecordsUseCase` — filter Alpro records by cow list
+- `DetectMissingCowsUseCase` — detect selected cows absent from the report
+- `BuildDairySenseRowsUseCase` — map/transform matched records
+- `ConvertReportUseCase` — orchestrator; guards no-cow-list, delegates to repo
 
 ### Infrastructure
 
-- HTML parser
+- HTML parser (`AlproParser`)
 - Excel reader
-- Excel writer
+- Excel writer (`DairySenseWriter`)
 - Local persistence
 - File/folder picker
 
-The exact package choices should be researched during `/speckit.plan`.
+### Error handling
+
+The data layer (`ConversionRepoImpl`) catches thrown
+`custom_exceptions.dart` and maps them to `dartz.Either<Failure, T>` using the
+typed failures in `core/errors/failures.dart`. The UI shows the `Failure.message`
+— never a raw stack trace.
+
+Package choices: `html`, `excel`, `file_picker`, `path_provider`, `path`,
+plus `flutter_bloc` and `dartz` (for the Uni-pattern state + failure modeling).
 
 ---
 
@@ -511,15 +532,15 @@ Never expose raw stack traces as the primary user message.
 
 ### Unit tests
 
-Cover:
+Cover (implemented in `test/alpro_parser_test.dart` and `test/converter_test.dart`):
 
 1. Alpro HTML parsing.
 2. Header detection.
 3. Cow-number normalization.
-4. Cow filtering.
-5. Missing-cow detection.
+4. Cow filtering (`FilterRecordsUseCase`).
+5. Missing-cow detection (`DetectMissingCowsUseCase`).
 6. Duration conversion.
-7. Output field mapping.
+7. Output field mapping (`BuildDairySenseRowsUseCase`).
 8. Conductivity = 0.
 9. temperature = 0.
 10. Duplicate handling.
@@ -549,7 +570,8 @@ Verify:
 - temperature values
 - column order
 
-Keep the supplied files as regression fixtures.
+Keep the supplied files as regression fixtures. The integration test MUST skip
+gracefully when the fixture files are absent (see T021).
 
 ---
 
@@ -689,12 +711,13 @@ Feature name:
 alpro-dairysense-converter
 ```
 
-Suggested implementation phases:
+Implementation phases (aligned to the plan in `specs/001-alpro-dairysense-converter/plan.md`):
 
 ### Phase 1 — Foundation
 - Flutter Windows project
-- Architecture
-- File abstractions
+- Architecture (Uni pattern: feature-first, flutter_bloc + dartz)
+- `core/errors/` (failures + custom exceptions), `core/utils/app_utils.dart`
+- `features/home/domain/entities/` (AlproRecord, AlproReport, CowList, DairySenseRow, ConversionResult)
 - Error handling foundation
 
 ### Phase 2 — Alpro Parser
@@ -703,6 +726,7 @@ Suggested implementation phases:
 - Header detection
 - Alpro model
 - Validation
+- `features/home/data/data_sources/alpro_parser.dart`
 
 ### Phase 3 — Cow List Management
 - Excel import
@@ -711,6 +735,7 @@ Suggested implementation phases:
 - Local persistence
 - Replace current list
 - Last-updated information
+- `features/cow_list/`
 
 ### Phase 4 — Filtering and Transformation
 - Cow filtering
@@ -719,6 +744,7 @@ Suggested implementation phases:
 - Field transformation
 - Duration conversion
 - Default measurement values
+- `features/home/domain/use_cases/` + `data/repos/conversion_repo_impl.dart`
 
 ### Phase 5 — DairySense Excel
 - Workbook creation
@@ -726,8 +752,10 @@ Suggested implementation phases:
 - Correct data types
 - Output filename
 - Folder picker
+- `features/home/data/data_sources/dairy_sense_writer.dart`
 
-### Phase 6 — Testing and Polish
+### Phase 6 — UI, State, and Polish
+- `ConversionCubit` (flutter_bloc) + `features/home/presentation/`
 - Unit tests
 - Integration tests
 - Error states
@@ -741,29 +769,35 @@ Suggested implementation phases:
 
 Do not build the UI first and then force the conversion logic into it.
 
-The core application should be a deterministic pipeline:
+The core application should be a deterministic pipeline, implemented as pure
+use cases in `features/home/domain/use_cases/` (with IO in the data layer):
 
 ```text
 ALPRO HTML
     ↓
-Parse
+Parse (AlproParser)
     ↓
 Validate
     ↓
 Current Cow List
     ↓
-Filter
+Filter (FilterRecordsUseCase)
     ↓
-Transform
+Detect Missing (DetectMissingCowsUseCase)
+    ↓
+Transform (BuildDairySenseRowsUseCase)
     ↓
 Validate Output
     ↓
-DairySense XLSX
+DairySense XLSX (DairySenseWriter)
 ```
 
-This pipeline must be independently testable without Flutter UI.
+This pipeline must be independently testable without Flutter UI. It is exposed
+to the UI through `ConversionRepo` → `ConvertReportUseCase` → `ConversionCubit`,
+returning `Either<Failure, ConversionResult>`.
 
-The Flutter UI should orchestrate the pipeline and present status, warnings, confirmations, and results.
+The Flutter UI should orchestrate the pipeline and present status, warnings,
+confirmations, and results.
 
 ---
 
