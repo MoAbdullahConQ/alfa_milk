@@ -104,7 +104,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Missing-cow flow in `lib/main.dart` [CONVERT] handler: first run a preview step in `Isolate.run` using the pure functions (`parseAlproReport` + `filterRecords` + `detectMissingCows` — no write); if `missing.isNotEmpty` show a confirm `AlertDialog` listing the missing cows with `[Cancel] [Continue]`; Cancel → abort, NO file created (FR-011); Continue → proceed to the save flow (US4). If zero records match after filtering, explain the situation with a typed error and create NO file (FR-021). Depends on T009 (converter), T012 (shell)
+- [ ] T018 [US3] Missing-cow flow in `lib/main.dart` [CONVERT] handler: first run a preview step in `Isolate.run` using the pure functions (`parseAlproReport` + `filterRecords` + `detectMissingCows` — no write); if `missing.isNotEmpty` show a confirm `AlertDialog` listing the missing cows with `[Cancel] [Continue]`; Cancel → abort, NO file created (FR-011); Continue → proceed to the save flow (US4). If zero records match after filtering, explain the situation with a typed error and create NO file (FR-021). **(F2, optional optimization):** the preview re-parses the report that US4's `runConversion` parses again; this duplicate parse is acceptable (report is parsed in-memory, pure, and cheap relative to the write). If US1/T012 already yields a parsed `AlproReport`, prefer passing it through instead of re-parsing — but keep the pipeline functions pure and testable either way. **No-cow-list guard (C1)**: at the top of the [CONVERT] handler, if `activeCowList == null` raise `NoCowListError` ("Import a current cow list before converting.") and show it via the dialog — do NOT fall through to the FR-021 zero-match message, which is reserved for *having* a list but matching nothing. Depends on T009 (converter), T012 (shell)
 
 **Checkpoint**: Missing cows are never silently exported; Cancel guarantees no output file.
 
@@ -119,7 +119,7 @@
 ### Implementation for User Story 4
 
 - [ ] T019 [US4] Save flow in `lib/main.dart` (after T018's Continue): `FilePicker.platform.saveFile(fileName: 'DairySense_Import_<YYYY-MM-DD_HHmmss>.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'])` (FR-015 — native dialog makes the name editable, no custom UI); then run the write in `Isolate.run` calling `runConversion` with the chosen path; existing-file collision → friendly `OutputWriteError` message and retry (FR-017). Depends on T018
-- [ ] T020 [US4] Error handling in `lib/main.dart`: wrap every pipeline call and show `AlertDialog` with the typed message for `AlproParseError`, `CowListError`, `OutputWriteError`, `NoCowListError` ("Import a current cow list before converting."); NEVER show a raw stack trace to the user (FR-017, Principle IV). Depends on T019
+- [ ] T020 [US4] Error handling in `lib/main.dart`: wrap every pipeline call and show `AlertDialog` with the typed message for `AlproParseError`, `CowListError`, `OutputWriteError`, `NoCowListError` ("Import a current cow list before converting."); NEVER show a raw stack trace to the user (FR-017, Principle IV). The pipeline itself MUST also throw `NoCowListError` when `runConversion` is given an empty `cowNumbers` set, so the no-list behavior is unit-testable (see T018's guard and the new T026 test). Depends on T019
 
 **Checkpoint**: Folder picker appears on every conversion; all failures are user-friendly and retryable.
 
@@ -130,12 +130,14 @@
 **Purpose**: Real-fixture verification, full build, and validation gate
 
 - [ ] T021 Write `test/integration_test.dart`: end-to-end `runConversion` over `test/fixtures/alpro_report.html` + `test/fixtures/current_cow_list.xlsx` → temp output; assert output row count = matching Alpro records, exported `CowNumber` set = intersection of report × list, `Milking Time` = total seconds, `Conductivity`/`temperature` = 0, header order exactly `Date, Session, UnitNo, CowNumber, Milking Time, Milk yield, Conductivity, temperature`. The test MUST skip gracefully (e.g. `markTestSkipped`) when fixture files are absent. When the real files arrive: inspect them per `contracts/file-formats.md`, adjust the header-name maps in `lib/alpro_parser.dart` and the constants in `lib/dairy_sense_writer.dart` until the integration test passes, and keep the files as regression fixtures (Constitution V/VI)
+- [ ] T026 [US1] **Performance + no-list guard tests** (FR-018/SC-006, C1): in `test/converter_test.dart` add (a) a synthetic report of ~5,000 records (generated in-memory per `contracts/file-formats.md` §1) asserting `parseAlproReport` + `filterRecords` + `buildDairySenseRows` complete and stay responsive (e.g. complete under a generous bound such as 5 s without freezing), covering SC-006/FR-018 deterministically without the UI; and (b) a test that `runConversion(..., cowNumbers: {})` throws `NoCowListError` (never an FR-021 zero-match message), pinning the no-list behavior for T018/T020. These tests do NOT require the real fixture files.
+- [ ] T027 [US2/US3] **Input non-mutation + large-list test** (FR-019/FR-020): in `test/converter_test.dart` assert that after a full `runConversion`, the source `alpro_report.html` and cow-list files' bytes are unchanged (hash before/after), and that a cow list with several thousand numbers round-trips through `saveCowList`/`getCowListFile` without limit. Proves the app never modifies inputs and has no fixed cow-count cap.
 - [ ] T022 [P] Run `flutter analyze` and fix all reported issues
-- [ ] T023 [P] Run `flutter test` — ALL tests green (unit + integration)
+- [ ] T023 [P] Run `flutter test` — ALL tests green (unit + integration, incl. T026/T027)
 - [ ] T024 [P] Run `flutter build windows` — succeeds (requires VS2022 C++ workload per quickstart.md)
 - [ ] T025 [P] Walk through the 5 manual acceptance cases (A–E) and edge checks from `quickstart.md` §4 against `build/windows/x64/runner/Release/alfa_milk.exe`; confirm Definition of Done per quickstart.md §6
 
-**Checkpoint**: Feature is complete, built, and validated against the real files.
+**Checkpoint**: Feature is complete, built, validated against the real files, performance-gated (SC-006), and proven to never modify inputs or cap the cow list (FR-019/FR-020).
 
 ---
 
@@ -169,6 +171,7 @@
 - T008 and T010: different files, no interdependency (converter T009 joins them)
 - T013: can start as soon as Foundational is done (independent test file)
 - T014 and T015: loader and store are separate files
+- T026 and T027: both extend `test/converter_test.dart`, file-independent from fixture T021
 - T022–T025: independent validation commands in Polish phase
 
 ---

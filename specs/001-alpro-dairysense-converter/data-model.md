@@ -94,12 +94,19 @@ Returned by the pipeline after saving.
 Thrown by the pipeline so the UI can show messages (never stack traces,
 Constitution Principle IV):
 
-| Error type           | Message pattern                          |
-|----------------------|------------------------------------------|
-| `AlproParseError`    | "The selected file is not a valid Alpro report: <detail>" |
-| `CowListError`       | "The cow list could not be read: <detail>" |
-| `OutputWriteError`   | "The file could not be saved: <detail>"  |
-| `NoCowListError`     | "Import a current cow list before converting." |
+| Error type           | Message pattern                          | Raised where                          |
+|----------------------|------------------------------------------|---------------------------------------|
+| `AlproParseError`    | "The selected file is not a valid Alpro report: <detail>" | `alpro_parser.dart` |
+| `CowListError`       | "The cow list could not be read: <detail>" | `cow_list_loader.dart` |
+| `OutputWriteError`   | "The file could not be saved: <detail>"  | `dairy_sense_writer.dart` |
+| `NoCowListError`     | "Import a current cow list before converting." | `converter.dart` **and** UI guard (T018) |
+
+**NoCowListError origin rule (C1):** `runConversion` MUST throw `NoCowListError`
+when `cowNumbers` is empty (an empty set is treated as *no list* — a list is
+valid only if it has ≥1 number, §3). The UI ALSO checks `activeCowList == null`
+before converting (T018) so the message is never shown as the FR-021
+zero-match case. These two cases are distinct: `NoCowListError` = no list to
+filter with; FR-021 = a list exists but zero records match.
 
 ## 7. State transitions
 
@@ -110,7 +117,22 @@ Constitution Principle IV):
 [CowList active] --import invalid xlsx--> [CowList active unchanged]
 [CowList active] + Alpro report --convert--> [ConversionResult] (file saved)
 [CowList active] + Alpro report, 0 matches --> error, no file (FR-021)
+[No list] + Alpro report --convert--> NoCowListError, no file   (T018/T026)
 ```
 
 There is no other persistent state. The app process state is: selected HTML
 path, active `CowList` (in memory), and the last `ConversionResult`.
+
+### Edge-case handling (F1)
+
+- **App closed mid-conversion**: the workbook is built fully in memory and only
+  written after every validation passes (Constitution IV). If the app is closed
+  before the write completes, no partial file exists on disk — nothing to
+  roll-back or repair. A crash after the write starts may leave a partial
+  `.xlsx`; the next run MUST treat any saved `.xlsx` as ordinary output only (it
+  is never re-read or trusted as state), so no extra recovery logic is required.
+- **Warnings vs summary (A1)**: one concept — parse skips (FR-014) — is
+  surfaced as `AlproReport.warnings` (parse stage) and copied into
+  `ConversionResult.warnings` (pipeline output). The UI renders the single
+  `ConversionResult.warnings` list inside the summary dialog; there is no
+  separate "summary warnings" structure.

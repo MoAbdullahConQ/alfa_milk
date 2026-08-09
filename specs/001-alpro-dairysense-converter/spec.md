@@ -123,7 +123,10 @@ picker appears every time, and the file lands only in the chosen folder.
 - What happens when required columns are missing from the report?
 - What happens when the cow list has no valid numbers or is empty?
 - What happens when saved cow-list data on disk is corrupted?
-- What happens when the app is closed mid-conversion?
+- What happens when the app is closed mid-conversion? (*A: the workbook is
+  built entirely in memory and written only after all validation passes, so
+  closure before the write leaves no partial file; see data-model.md §7 —
+  FR-021/Principle IV.*)
 - What happens when two cows share the same number (duplicates in either input)?
 - What happens when the report contains a cow whose number format differs
   from the list (whitespace, leading zeros)?
@@ -222,7 +225,9 @@ picker appears every time, and the file lands only in the chosen folder.
 ### Measurable Outcomes
 
 - **SC-001**: A conversion of ~150 records completes correctly, from
-  selecting the report to choosing the folder, in under 2 minutes.
+  selecting the report to choosing the folder, in under 2 minutes. (*Measured at
+  the manual acceptance walk-through T025; the automated per-record-cost bound is
+  covered by SC-006/T026.*)
 - **SC-002**: 100% of records parsed from the supplied test report are
   available to filter; only cows on the active list ever appear in output.
 - **SC-003**: Every output workbook opened in the target import tool with 8
@@ -233,7 +238,11 @@ picker appears every time, and the file lands only in the chosen folder.
 - **SC-005**: A failed cow-list import leaves the previous list active in
   100% of attempts.
 - **SC-006**: The UI remains responsive for a report of around 5,000 records
-  (no freeze perceived by the user).
+  (no freeze perceived by the user). *Verified by an automated in-memory
+  5,000-record test (T026) asserting the pure pipeline completes within a
+  generous wall-clock bound; the UI is exercised via `Isolate.run`.
+  Where `Isolate.run` is not available in a unit harness, the bound is
+  asserted on the pipeline functions themselves.*
 - **SC-007**: Automated tests (using the supplied real files as fixed
   regression fixtures) pass 100% of conversion-rule cases before each release
   is considered fit.

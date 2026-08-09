@@ -31,12 +31,16 @@ except `a-z0-9` (`"Cow No."` → `cowno`). Then match exact normalized names:
 |------------|-------------------------------|
 | `cowno`    | cow number column             |
 | `mpcaddress` | unit column                 |
-| `milyield` / `milyeild` / `milk` | milk yield column |
+| `milyield` / `milyeild` | milk yield column |
 | `milkdur`  | duration column               |
 
-> If the real fixture uses other spellings, extend this map in
-> `alpro_parser.dart` only after inspecting the fixture file. Missing required
-> column → `AlproParseError` listing the missing column name.
+> **PROVISIONAL (Constitution VI):** The variant spellings above
+> (`milyield`, `milyeild`) are best-effort guesses because the real fixture is
+> not yet in the repo. They MUST be confirmed against the actual
+> `test/fixtures/alpro_report.html` during T021 and corrected or removed —
+> never treated as authoritative. Do NOT add a bare `milk` fallback: it is too
+> broad and would risk matching unintended columns (e.g. an unrelated header).
+> Missing required column → `AlproParseError` listing the missing column name.
 
 ### Date/Session search
 

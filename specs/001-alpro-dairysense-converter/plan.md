@@ -32,7 +32,7 @@ without the UI.
 | **Performance Goals** | Parse/filter/transform + write ~5,000 records; UI never frozen (one `Isolate.run` call) |
 | **Constraints** | Local-only, offline, deterministic pipeline, no mapping of cow lists, no fake data, user picks output folder every time |
 | **Scale/Scope** | One active cow list, one screen, 8 output columns, ~10 source files |
-| **Open items** | The three supplied sample files are **not yet in the repo**. The contracts (`contracts/file-formats.md`) are written from the spec; when the files arrive in `test/fixtures/`, the implementer MUST verify/adjust the header maps in `alpro_parser.dart` / `dairy_sense_writer.dart` and make the integration test pass on them. This is a verification step, not a blocker for the code structure. |
+| **Open items** | The three supplied sample files are **not yet in the repo**. The contracts (`contracts/file-formats.md`) are written from the spec; when the files arrive in `test/fixtures/`, the implementer MUST verify/adjust the header maps in `alpro_parser.dart` / `dairy_sense_writer.dart` and make the integration test pass on them. This is a verification step, not a blocker for the code structure. Those provisional header variants are never authoritative (Constitution VI — see contracts §1). Performance (SC-006) and input-non-mutation (FR-019) and no-fixed-limit (FR-020) are verified by tests T026/T027, not just by design. |
 
 All items resolved — **no NEEDS CLARIFICATION** remains.
 
@@ -138,6 +138,8 @@ List<DairySenseRow> buildDairySenseRows(AlproReport report, List<AlproRecord> ma
 /// The ENTIRE pipeline, synchronous and side-effect-free except writing the file:
 /// parse -> filter -> missing cows -> transform -> build rows -> validate non-empty ->
 /// write workbook -> return result. Throws typed errors (data-model.md §6).
+/// Throws NoCowListError when `cowNumbers` is empty (an empty set means "no list",
+/// distinct from the FR-021 zero-match case where a list exists but nothing matches).
 ConversionResult runConversion({
   required String alproHtmlPath,
   required Set<int> cowNumbers,
