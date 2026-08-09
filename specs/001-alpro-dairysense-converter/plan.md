@@ -72,25 +72,37 @@ specs/001-alpro-dairysense-converter/
 
 ```text
 lib/
-├── main.dart                       # entry + shared MainScreen shell (app-level UI)
+├── main.dart                       # entry + shared MainScreen shell (composition root)
 ├── core/                           # shared, framework-independent, no feature logic
-│   ├── models.dart                 # all entities + typed errors (see data-model.md)
-│   └── utils.dart                  # normalizeHeader, normalizeCowNumber, durationToSeconds
+│   ├── errors/
+│   │   ├── failures.dart           # Failure base + typed failures (dartz Either)
+│   │   └── custom_exceptions.dart  # thrown typed errors (see data-model.md §6)
+│   ├── helper_functions/           # error_dialog, file_picker_helper, show_conversion_summary
+│   ├── utils/
+│   │   └── app_utils.dart          # normalizeHeader, normalizeCowNumber, durationToSeconds
+│   ├── models/  widgets/  services/  # shared (Uni-pattern placeholders)
 └── features/                       # feature modules, each self-contained
-    ├── alpro_converter/            # Alpro → DairySense pipeline
-    │   ├── data/                   #   external-format handling
-    │   │   ├── alpro_parser.dart   #     parseAlproReport(String html) -> AlproReport
-    │   │   └── dairy_sense_writer.dart  # writeDairySenseXlsx(rows, path)
-    │   ├── domain/                 #   pure pipeline logic (no dart:ui)
-    │   │   └── converter.dart      #     runConversion + helpers
-    │   └── presentation/           #   feature UI widgets
-    │       └── report_convert_view.dart
-    └── cow_list/                   # cow list management
+    ├── home/                       # Alpro → DairySense pipeline (Uni pattern)
+    │   ├── data/
+    │   │   ├── data_sources/
+    │   │   │   ├── alpro_parser.dart      # parseAlproReport + AlproParser class
+    │   │   │   └── dairy_sense_writer.dart # writeDairySenseXlsx + DairySenseWriter class
+    │   │   └── repos/
+    │   │       └── conversion_repo_impl.dart  # implements ConversionRepo, Either<Failure,T>
+    │   ├── domain/
+    │   │   ├── entities/           # alpro_record, alpro_report, cow_list, dairy_sense_row, conversion_result
+    │   │   ├── repos/
+    │   │   │   └── conversion_repo.dart  # abstract boundary (Either<Failure,T>)
+    │   │   └── use_cases/          # filter_records, detect_missing_cows, build_dairy_sense_rows, convert_report
+    │   └── presentation/
+    │       ├── manager/
+    │       │   └── conversion_cubit/  # conversion_cubit.dart + part conversion_state.dart
+    │       └── views/              # main_screen.dart + widgets/ (cow_list_card, report_convert_view)
+    └── cow_list/                   # cow list management (US2)
         ├── data/
         │   ├── cow_list_loader.dart    # loadCowListFromXlsx(String path)
         │   └── cow_list_store.dart     # saveCowList/getCowListFile -> CowList?
-        ├── domain/                 #   (currently thin; CowList model lives in core)
-        │   └── cow_list_use_cases.dart
+        ├── domain/                 #   entities + use_cases
         └── presentation/
             └── cow_list_card.dart
 
@@ -102,71 +114,104 @@ test/
 └── fixtures/              # alpro_report.html, current_cow_list.xlsx, dairy_sense_template.xlsx
 ```
 
-**Structure Decision**: Lightweight **clean architecture** on a single
-project. Dependencies point inward: `main.dart` → `features/*/presentation` →
-`features/*/domain` → `features/*/data` → `core/`. `core/` has no feature
-knowledge; each feature owns its data (external formats), domain (pure business
-rules), and presentation (widgets) layers. The pipeline functions in
-`features/*/domain/` ARE the application layer and stay pure (no `dart:ui`).
-`main.dart` remains the only app shell and composition root. Do NOT add extra
-layers beyond `core/` and `features/`; keep the whole feature set to the two
-features above.
+**Structure Decision**: **Clean architecture** mirroring the `Uni` repo
+pattern (feature-first, bloc + dartz). Dependencies point inward:
+`main.dart` → `features/*/presentation` → `features/*/domain` →
+`features/*/data` → `core/`. `core/` has no feature knowledge; each feature owns
+its data (external formats), domain (pure business rules + use cases + repo
+abstraction), and presentation (widgets + cubit) layers.
+
+- `core/errors/failures.dart` — `Failure` base + typed failures; the data layer
+  maps thrown `custom_exceptions.dart` to `dartz.Either<Failure, T>`.
+- `core/helper_functions/`, `core/utils/`, `core/models/`, `core/widgets/`,
+  `core/services/` — shared, framework-independent helpers.
+- `features/*/domain/` — `entities/`, `repos/` (abstract boundary), `use_cases/`
+  (thin, wrap the repo, stay pure, no `dart:ui`).
+- `features/*/data/` — `data_sources/` (parse/write IO as classes),
+  `repos/*_repo_impl.dart` (implements the abstract repo, returns `Either`).
+- `features/*/presentation/` — `manager/*_cubit/` (flutter_bloc Cubit + part
+  state), `views/` + `views/widgets/`.
+
+`main.dart` remains the only app shell and composition root (constructs the
+repo → use case → cubit chain).
 
 ## Implementation order (each step ends green)
 
 > Converts the spec's 6 phases into one linear, cheap-model-friendly order.
 > Every step: write the failing test(s) first, then the code (Constitution V).
 
-1. **Foundation** — `flutter pub add html excel file_picker path_provider path`;
-   delete `test/widget_test.dart` (references the old counter app); verify
-   `flutter analyze` + `flutter test` are clean. (`core/models.dart` +
-   `core/utils.dart` land here too.)
-2. **Converter core (pure)** — `features/alpro_converter/domain/converter.dart`
-   functions below, tested in `converter_test.dart`.
-3. **Alpro parser** — `features/alpro_converter/data/alpro_parser.dart`, tested
-   in `alpro_parser_test.dart`.
+1. **Foundation** — `flutter pub add html excel file_picker path_provider path
+   flutter_bloc dartz`; delete `test/widget_test.dart` (references the old
+   counter app); verify `flutter analyze` + `flutter test` are clean.
+   (`core/errors/failures.dart`, `core/errors/custom_exceptions.dart`, and
+   `core/utils/app_utils.dart` land here too.)
+2. **Domain (pure)** — `features/home/domain/entities/*`,
+   `features/home/domain/repos/conversion_repo.dart` (abstract),
+   `features/home/domain/use_cases/{filter_records,detect_missing_cows,build_dairy_sense_rows,convert_report}_use_case.dart`,
+   tested in `converter_test.dart`.
+3. **Alpro parser** — `features/home/data/data_sources/alpro_parser.dart`
+   (`parseAlproReport` + `AlproParser` class), tested in `alpro_parser_test.dart`.
 4. **Cow list** — `features/cow_list/data/cow_list_loader.dart` +
    `cow_list_store.dart`, tested in `cow_list_test.dart` (round-trip save/load
    with a temp dir).
-5. **Workbook writer** — `features/alpro_converter/data/dairy_sense_writer.dart`,
-   tested via `converter_test.dart` (write to temp dir, read back with `excel`,
-   assert header order and values).
-6. **UI** — `main.dart` (shell) + `features/*/presentation` widgets, one
-   screen, three dialogs, `Isolate.run` orchestration.
-7. **Integration + polish** — `integration_test.dart` on fixture files; friendly
+5. **Workbook writer** — `features/home/data/data_sources/dairy_sense_writer.dart`
+   (`writeDairySenseXlsx` + `DairySenseWriter` class), tested via
+   `converter_test.dart` (write to temp dir, read back with `excel`, assert
+   header order and values).
+6. **Data repo impl** — `features/home/data/repos/conversion_repo_impl.dart`
+   implements `ConversionRepo`, runs the pipeline in `Isolate.run`, maps thrown
+   exceptions → `Either<Failure, ConversionResult>`.
+7. **UI** — `main.dart` (shell) + `features/home/presentation` widgets and
+   `conversion_cubit`, one screen, three dialogs, `Isolate.run` orchestration.
+8. **Integration + polish** — `integration_test.dart` on fixture files; friendly
    error paths; `flutter build windows`.
 
-## Pre-specified core functions (`features/alpro_converter/domain/converter.dart`)
+## Pre-specified core functions (`features/home/domain/use_cases/`)
 
-Exact signatures so the implementer never guesses. All in one file, all pure.
+Exact signatures so the implementer never guesses. Now thin use-case classes
+wrapping the abstract `ConversionRepo` (Uni pattern). Pure logic stays in the
+use cases; IO lives in the data layer.
 
 ```dart
-/// FR-005: trim; int, else double with .0, else null.
+// FR-005: trim; int, else double with .0, else null. (core/utils/app_utils.dart)
 int? normalizeCowNumber(String raw);
 
-/// FR-014: "HH:MM:SS" -> seconds; anything else -> null. Example 00:03:00 -> 180.
+// FR-014: "HH:MM:SS" -> seconds; anything else -> null. (core/utils/app_utils.dart)
 int? durationToSeconds(String? raw);
-// Reference: split on ':', parse 3 ints, return h*3600 + m*60 + s; null on any failure.
 
-/// FR-009: keep records whose cowNumber is in list, original order.
-List<AlproRecord> filterRecords(List<AlproRecord> records, Set<int> cowNumbers);
+// FR-009: keep records whose cowNumber is in list, original order.
+class FilterRecordsUseCase {
+  List<AlproRecord> call(List<AlproRecord> records, Set<int> cowNumbers);
+}
 
-/// FR-010: selected cows absent from the report, sorted ascending.
-List<int> detectMissingCows({required Set<int> selected, required Set<int> inReport});
+// FR-010: selected cows absent from the report, sorted ascending.
+class DetectMissingCowsUseCase {
+  List<int> call({required Set<int> selected, required Set<int> inReport});
+}
 
-/// FR-012/013/014: build the output rows (Conductivity/temperature = 0).
-List<DairySenseRow> buildDairySenseRows(AlproReport report, List<AlproRecord> matched);
+// FR-012/013/014: build the output rows (Conductivity/temperature = 0).
+class BuildDairySenseRowsUseCase {
+  List<DairySenseRow> call(AlproReport report, List<AlproRecord> matched);
+}
 
-/// The ENTIRE pipeline, synchronous and side-effect-free except writing the file:
-/// parse -> filter -> missing cows -> transform -> build rows -> validate non-empty ->
-/// write workbook -> return result. Throws typed errors (data-model.md §6).
-/// Throws NoCowListError when `cowNumbers` is empty (an empty set means "no list",
-/// distinct from the FR-021 zero-match case where a list exists but nothing matches).
-ConversionResult runConversion({
-  required String alproHtmlPath,
-  required Set<int> cowNumbers,
-  required String outputXlsxPath,
-});
+// Orchestrator: guards no-cow-list, delegates to the repo (Either).
+class ConvertReportUseCase {
+  Future<Either<Failure, ConversionResult>> call({
+    required String alproHtmlPath,
+    required CowList? cowList,
+    required String outputXlsxPath,
+  });
+}
+
+// Abstract boundary implemented by features/home/data/repos/conversion_repo_impl.dart.
+abstract class ConversionRepo {
+  Future<Either<Failure, AlproReport>> parseAlproReport(String htmlPath);
+  Future<Either<Failure, ConversionResult>> runConversion({
+    required String alproHtmlPath,
+    required CowList cowList,
+    required String outputXlsxPath,
+  });
+}
 ```
 
 Pre-specified tricky helpers, copy as-is:
@@ -188,26 +233,27 @@ int? normalizeCowNumber(String raw) {
 }
 ```
 
-## UI contract (`main.dart` + `features/*/presentation`)
+## UI contract (`main.dart` + `features/home/presentation`)
 
-- `MainScreen` = one `StatefulWidget` in `lib/main.dart`; state:
-  `selectedHtmlPath`, `CowList? activeCowList`, `bool busy`,
-  `ConversionResult? lastResult`.
-- `setState` is the only state mechanism. Async work is
-  `await Isolate.run(() => runConversion(...))` — no manual isolate plumbing.
-- Components (all in the same file):
+- `MainScreen` = one `StatefulWidget` in `lib/features/home/presentation/views/main_screen.dart`; UI-local state: `selectedHtmlPath`, `CowList? activeCowList`. It builds the repo → use case → cubit chain and provides it via `BlocProvider.value`.
+- State management is **flutter_bloc**: `ConversionCubit` in
+  `presentation/manager/conversion_cubit/` with states `ConversionInitial /
+  ConversionLoading / ConversionSuccess / ConversionFailure`. The UI reads
+  busy/result/failure via `BlocBuilder` / `BlocListener`. Pipeline work runs in
+  `await Isolate.run(...)` inside the repo impl — no manual isolate plumbing.
+- Components:
   1. "Select HTML file" button → `FilePicker.platform.pickFiles(type:
      FileType.custom, allowedExtensions: ['html'])`.
   2. Cow list card: count, "Last updated: <ts>", source (saved/imported),
      "Update Cow List" button → pick `.xlsx` → load → then
      `saveCowList(...)`.
-  3. `[CONVERT]` → pipeline → on `missing.isNotEmpty` show the missing-cow
+  3. `[CONVERT]` → cubit → on `missing.isNotEmpty` show the missing-cow
      dialog (`[Cancel] [Continue]`); Continue → save dialog
      (`FilePicker.platform.saveFile(fileName: DairySense_Import_<ts>.xlsx,
      type: FileType.custom, allowedExtensions: ['xlsx'])`) → save → summary
      dialog (report records / selected / found / missing / warnings / path).
-  4. Every pipeline error → `AlertDialog` with the typed message. Never a
-     stack trace (FR-017).
+  4. Every pipeline error → `AlertDialog` with the typed `Failure.message`.
+     Never a stack trace (FR-017).
 
 ## Complexity Tracking
 
@@ -216,12 +262,12 @@ int? normalizeCowNumber(String raw) {
 
 | Simplification | Why it is enough | Full alternative rejected because |
 |---|---|---|
-| No state-management library, plain `setState` | One screen, 4 states, no cross-widget sharing | Riverpod/Bloc adds concepts a cheap model can misuse |
-| Lightweight clean-arch (`core/` + `features/` with data/domain/presentation) | Clear, testable separation without boilerplate; core is shared & pure | Full MVVM/DI registries add wiring a cheap model can misuse |
-| No repository/use-case classes; free functions in `converter.dart` | The pipeline IS the application logic; functions are trivially testable | Class layers obscure the data flow |
+| flutter_bloc Cubit for state | Matches the `Uni` repo pattern the project mirrors; one small cubit per feature is idiomatic and testable | Plain `setState` (plan v1) was rejected to keep architecture consistent with `Uni` |
+| Clean-arch with repo + use-case classes (`core/` + `features/` data/domain/presentation) | Clear, testable separation; core is shared & pure; matches `Uni` | Full MVVM/DI registries add wiring a cheap model can misuse |
+| `dartz.Either<Failure, T>` at the data/domain boundary | Idiomatic failure modeling matching `Uni`; UI reads `.message` | Raw thrown exceptions leaking to widgets |
+| Repo impl runs the whole pipeline in a single `Isolate.run` | Requirement is only "UI stays responsive" | Streamed progress adds protocol complexity for no MVP value |
 | Whole UI split across `main.dart` shell + feature `presentation/` (~350 lines total) | One screen + 4 small dialogs, feature widgets colocated with their logic | A single flat UI file mixes feature concerns |
 | JSON file instead of SQLite | One list, ~10 KB | DB setup/ORMs are overkill and native-plugin risky on Windows |
-| Single `Isolate.run` instead of streamed progress | Requirement is only "UI stays responsive" | Progress streams add protocol complexity for no MVP value |
 | `excel` package does both read and write | Both skills are needed and trivial in it | Two packages = two APIs to learn for the implementer |
 | Raw report `Date`/`Session` passthrough (strings) | Spec forbids clock/guess values; formatting verified against template later | Format conversion now would be invented format handling (Principle VI) |
 
