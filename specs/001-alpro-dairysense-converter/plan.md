@@ -4,10 +4,11 @@
 
 **Input**: Feature specification from `/specs/001-alpro-dairysense-converter/spec.md`
 
-**Design goal of this plan**: MAXIMUM SIMPLICITY — this feature will be
-implemented by a low-budget (cheaper) LLM agent. The plan therefore:
-no architecture layers, no state-management library, no code generation, one
-UI file, 5 packages, and every tricky function is pre-specified below with a
+**Design goal of this plan**: MAXIMUM SIMPLICITY **with clean architecture** —
+this feature will be implemented by a low-budget (cheaper) LLM agent. The plan
+therefore uses a lightweight clean-architecture split (`core/` + `features/`
++ a single UI file), no state-management library, no code generation, one UI
+file, 5 packages, and every tricky function is pre-specified below with a
 copy-paste reference. Anything not specified here is not required.
 
 ## Summary
@@ -71,13 +72,27 @@ specs/001-alpro-dairysense-converter/
 
 ```text
 lib/
-├── main.dart              # entry + ENTIRE UI (1 StatefulWidget screen + dialogs)
-├── models.dart            # data classes + typed errors (see data-model.md)
-├── alpro_parser.dart      # parseAlproReport(String html) -> AlproReport
-├── cow_list_loader.dart   # loadCowListFromXlsx(String path) -> CowListLoadResult
-├── cow_list_store.dart    # saveCowList/getCowListFile -> CowList?
-├── converter.dart         # all pure pipeline functions (see signatures below)
-└── dairy_sense_writer.dart# writeDairySenseXlsx(List<DairySenseRow>, String path)
+├── main.dart                       # entry + shared MainScreen shell (app-level UI)
+├── core/                           # shared, framework-independent, no feature logic
+│   ├── models.dart                 # all entities + typed errors (see data-model.md)
+│   └── utils.dart                  # normalizeHeader, normalizeCowNumber, durationToSeconds
+└── features/                       # feature modules, each self-contained
+    ├── alpro_converter/            # Alpro → DairySense pipeline
+    │   ├── data/                   #   external-format handling
+    │   │   ├── alpro_parser.dart   #     parseAlproReport(String html) -> AlproReport
+    │   │   └── dairy_sense_writer.dart  # writeDairySenseXlsx(rows, path)
+    │   ├── domain/                 #   pure pipeline logic (no dart:ui)
+    │   │   └── converter.dart      #     runConversion + helpers
+    │   └── presentation/           #   feature UI widgets
+    │       └── report_convert_view.dart
+    └── cow_list/                   # cow list management
+        ├── data/
+        │   ├── cow_list_loader.dart    # loadCowListFromXlsx(String path)
+        │   └── cow_list_store.dart     # saveCowList/getCowListFile -> CowList?
+        ├── domain/                 #   (currently thin; CowList model lives in core)
+        │   └── cow_list_use_cases.dart
+        └── presentation/
+            └── cow_list_card.dart
 
 test/
 ├── alpro_parser_test.dart
@@ -87,12 +102,15 @@ test/
 └── fixtures/              # alpro_report.html, current_cow_list.xlsx, dairy_sense_template.xlsx
 ```
 
-**Structure Decision**: Flat single-project layout. The constitution's
-Presentation/Application/Domain/Infrastructure separation is preserved as
-*file separation* (UI ↔ pure code) instead of folders-with-classes, because
-the pipeline functions themselves ARE the application layer. 7 lib files is
-the whole app. Do NOT create folders like `features/`, `domain/`, or
-`data/` — flat files only.
+**Structure Decision**: Lightweight **clean architecture** on a single
+project. Dependencies point inward: `main.dart` → `features/*/presentation` →
+`features/*/domain` → `features/*/data` → `core/`. `core/` has no feature
+knowledge; each feature owns its data (external formats), domain (pure business
+rules), and presentation (widgets) layers. The pipeline functions in
+`features/*/domain/` ARE the application layer and stay pure (no `dart:ui`).
+`main.dart` remains the only app shell and composition root. Do NOT add extra
+layers beyond `core/` and `features/`; keep the whole feature set to the two
+features above.
 
 ## Implementation order (each step ends green)
 
@@ -101,20 +119,24 @@ the whole app. Do NOT create folders like `features/`, `domain/`, or
 
 1. **Foundation** — `flutter pub add html excel file_picker path_provider path`;
    delete `test/widget_test.dart` (references the old counter app); verify
-   `flutter analyze` + `flutter test` are clean. (`models.dart` lands here too.)
-2. **Converter core (pure)** — `converter.dart` functions below, tested in
-   `converter_test.dart`.
-3. **Alpro parser** — `alpro_parser.dart`, tested in `alpro_parser_test.dart`.
-4. **Cow list** — `cow_list_loader.dart` + `cow_list_store.dart`, tested in
-   `cow_list_test.dart` (round-trip save/load with a temp dir).
-5. **Workbook writer** — `dairy_sense_writer.dart`, tested via
-   `converter_test.dart` (write to temp dir, read back with `excel`, assert
-   header order and values).
-6. **UI** — `main.dart`: one screen, three dialogs, `Isolate.run` orchestration.
+   `flutter analyze` + `flutter test` are clean. (`core/models.dart` +
+   `core/utils.dart` land here too.)
+2. **Converter core (pure)** — `features/alpro_converter/domain/converter.dart`
+   functions below, tested in `converter_test.dart`.
+3. **Alpro parser** — `features/alpro_converter/data/alpro_parser.dart`, tested
+   in `alpro_parser_test.dart`.
+4. **Cow list** — `features/cow_list/data/cow_list_loader.dart` +
+   `cow_list_store.dart`, tested in `cow_list_test.dart` (round-trip save/load
+   with a temp dir).
+5. **Workbook writer** — `features/alpro_converter/data/dairy_sense_writer.dart`,
+   tested via `converter_test.dart` (write to temp dir, read back with `excel`,
+   assert header order and values).
+6. **UI** — `main.dart` (shell) + `features/*/presentation` widgets, one
+   screen, three dialogs, `Isolate.run` orchestration.
 7. **Integration + polish** — `integration_test.dart` on fixture files; friendly
    error paths; `flutter build windows`.
 
-## Pre-specified core functions (`converter.dart`)
+## Pre-specified core functions (`features/alpro_converter/domain/converter.dart`)
 
 Exact signatures so the implementer never guesses. All in one file, all pure.
 
@@ -166,10 +188,11 @@ int? normalizeCowNumber(String raw) {
 }
 ```
 
-## UI contract (`main.dart`)
+## UI contract (`main.dart` + `features/*/presentation`)
 
-- `MainScreen` = one `StatefulWidget`; state: `selectedHtmlPath`,
-  `CowList? activeCowList`, `bool busy`, `ConversionResult? lastResult`.
+- `MainScreen` = one `StatefulWidget` in `lib/main.dart`; state:
+  `selectedHtmlPath`, `CowList? activeCowList`, `bool busy`,
+  `ConversionResult? lastResult`.
 - `setState` is the only state mechanism. Async work is
   `await Isolate.run(() => runConversion(...))` — no manual isolate plumbing.
 - Components (all in the same file):
@@ -194,8 +217,9 @@ int? normalizeCowNumber(String raw) {
 | Simplification | Why it is enough | Full alternative rejected because |
 |---|---|---|
 | No state-management library, plain `setState` | One screen, 4 states, no cross-widget sharing | Riverpod/Bloc adds concepts a cheap model can misuse |
+| Lightweight clean-arch (`core/` + `features/` with data/domain/presentation) | Clear, testable separation without boilerplate; core is shared & pure | Full MVVM/DI registries add wiring a cheap model can misuse |
 | No repository/use-case classes; free functions in `converter.dart` | The pipeline IS the application logic; functions are trivially testable | Class layers obscure the data flow |
-| Whole UI in `main.dart` (~350 lines) | One screen + 4 small dialogs | Splitting UI files adds cross-file wiring errors |
+| Whole UI split across `main.dart` shell + feature `presentation/` (~350 lines total) | One screen + 4 small dialogs, feature widgets colocated with their logic | A single flat UI file mixes feature concerns |
 | JSON file instead of SQLite | One list, ~10 KB | DB setup/ORMs are overkill and native-plugin risky on Windows |
 | Single `Isolate.run` instead of streamed progress | Requirement is only "UI stays responsive" | Progress streams add protocol complexity for no MVP value |
 | `excel` package does both read and write | Both skills are needed and trivial in it | Two packages = two APIs to learn for the implementer |
