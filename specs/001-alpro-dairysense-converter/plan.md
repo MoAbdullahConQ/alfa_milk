@@ -35,6 +35,17 @@ without the UI.
 | **Scale/Scope** | One active cow list, one screen, 8 output columns, ~10 source files |
 | **Open items** | The three supplied sample files are **not yet in the repo**. The contracts (`contracts/file-formats.md`) are written from the spec; when the files arrive in `test/fixtures/`, the implementer MUST verify/adjust the header maps in `alpro_parser.dart` / `dairy_sense_writer.dart` and make the integration test pass on them. This is a verification step, not a blocker for the code structure. Those provisional header variants are never authoritative (Constitution VI — see contracts §1). Performance (SC-006) and input-non-mutation (FR-019) and no-fixed-limit (FR-020) are verified by tests T026/T027, not just by design. |
 
+**Real-file verification (2026-08-10):** the user's real Alpro HTML reports
+(`Session1 8-8.htm.html`, `Session2 7-8.htm.html`, `session 3 7-8.htm.html`)
+were provided and the parser was adjusted + verified against them: required
+headers are matched by **prefix** to tolerate a trailing sort-indicator digit
+(the `Cow No.` header renders as `cowno1`); only a truly empty yield/dur cell
+is skipped, while non-numeric yield and non-time duration (`-`) are kept and
+exported as `0` (dry-cow rows); real **Date** (`26.08.08`) and **Session**
+(`1`/`2`/`3`) are extracted from the report text (label-based extraction kept
+as fallback). Results: Session1=147, Session2=127, Session3=140 records
+converted end-to-end. `flutter analyze` clean; 21 tests pass.
+
 All items resolved — **no NEEDS CLARIFICATION** remains.
 
 ## Constitution Check
@@ -242,18 +253,30 @@ int? normalizeCowNumber(String raw) {
   busy/result/failure via `BlocBuilder` / `BlocListener`. Pipeline work runs in
   `await Isolate.run(...)` inside the repo impl — no manual isolate plumbing.
 - Components:
-  1. "Select HTML file" button → `FilePicker.platform.pickFiles(type:
-     FileType.custom, allowedExtensions: ['html'])`.
+   1. "Select HTML file" button → `FilePicker.pickFiles(type:
+      FileType.custom, allowedExtensions: ['html'])` (file_picker v11 static API).
   2. Cow list card: count, "Last updated: <ts>", source (saved/imported),
      "Update Cow List" button → pick `.xlsx` → load → then
      `saveCowList(...)`.
-  3. `[CONVERT]` → cubit → on `missing.isNotEmpty` show the missing-cow
-     dialog (`[Cancel] [Continue]`); Continue → save dialog
-     (`FilePicker.platform.saveFile(fileName: DairySense_Import_<ts>.xlsx,
-     type: FileType.custom, allowedExtensions: ['xlsx'])`) → save → summary
-     dialog (report records / selected / found / missing / warnings / path).
-  4. Every pipeline error → `AlertDialog` with the typed `Failure.message`.
-     Never a stack trace (FR-017).
+   3. `[CONVERT]` → cubit → on `missing.isNotEmpty` show the missing-cow
+      dialog (`[Cancel] [Continue]`); Continue → **native save dialog**
+      (`FilePicker.saveFile(fileName: DairySense_Import_<YYYY-MM-DD>_<H.mm
+      am/pm>.xlsx, type: FileType.custom, allowedExtensions: ['xlsx'])` — the
+      user picks the destination every time, and the source report is never used
+      as the output path) → save → summary dialog (report records / selected /
+      found / missing / warnings / path).
+   4. Every pipeline error → `AlertDialog` with the typed `Failure.message`.
+      Never a stack trace (FR-017).
+   5. **Cancel-safe (T019)**: cancelling the save dialog or the missing-cow
+      dialog calls `ConversionCubit.reset()` (→ `ConversionInitial`), which
+      immediately re-enables `CONVERT`, creates no file and shows no dialog, so
+      the user can convert again without restarting. An output-write failure
+      (locked / existing file) shows a friendly `OutputWriteFailure` message and
+      re-opens the save dialog to retry (FR-017).
+   6. **Selectable text**: all user-visible dialog and summary text uses
+      `SelectableText` (copyable via mouse selection / Ctrl+C) — conversion
+      summary, error dialogs, missing-cow dialog, and the cow-list validation
+      snackbar.
 
 ## Complexity Tracking
 

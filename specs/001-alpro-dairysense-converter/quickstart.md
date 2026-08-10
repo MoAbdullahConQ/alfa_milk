@@ -18,10 +18,16 @@ in [`data-model.md`](data-model.md).
 
 ```text
 test/fixtures/
-├── alpro_report.html           # the ~147-record Alpro report
-├── current_cow_list.xlsx       # the DairySense cow-number list
-└── dairy_sense_template.xlsx   # the DairySense import template (reference)
+├── Session1 8-8.htm.html     # real Alpro report, session 1 (147 records)
+├── Session2 7-8.htm.html     # real Alpro report, session 2 (127 records)
+├── session 3 7-8.htm.html    # real Alpro report, session 3 (140 records)
+├── current_cow_list.xlsx     # the DairySense cow-number list
+└── dairy_sense_template.xlsx # the DairySense import template (reference)
 ```
+
+> **Status (2026-08-10):** the three real Alpro report files have been added
+> and the parser was adjusted + verified against them (prefix header matching,
+> dry-cow → `0`, real Date `26.08.08` / Session `1`/`2`/`3` extraction).
 
 (Unit tests below work without them; the integration test needs them.)
 
@@ -48,12 +54,15 @@ In the running app:
 | A | Select Alpro HTML, then **Update Cow List** with `current_cow_list.xlsx` | list shows count + "Last updated" timestamp; filtering uses it |
 | B | Restart app (no new list import), select HTML, Convert | saved list is used automatically (status shows it was loaded from saved data) |
 | C | Import a valid list, then import a broken file (e.g. text file renamed `.xlsx`) | update rejected with friendly message; previous list still shown |
-| D | Convert with a list containing a cow not in the report | dialog lists the missing cow; **Cancel** → no file anywhere; **Continue** → file without that cow |
+| D | Convert with a list containing a cow not in the report | dialog lists the missing cow; **Cancel** → no file anywhere, **Convert** stays enabled (reset); **Continue** → file without that cow |
 | E | Complete a successful conversion | save dialog always appears; file lands only in the chosen folder |
+| F | Cancel the **save** dialog (X / Cancel) after Convert | no file created; `Convert` button re-enabled; no summary dialog; can convert again |
+| G | In any summary/error/missing-cow dialog | text is **selectable** (copyable via mouse / Ctrl+C) |
 
 Edge checks: converting with no list shows "import a current cow list first"
 and creates nothing; a report with zero matching cows produces no file and an
-explanation.
+explanation; writing to an existing/locked file shows a friendly error and
+re-opens the save dialog to retry.
 
 ## 5. Automated validation (test-first order)
 

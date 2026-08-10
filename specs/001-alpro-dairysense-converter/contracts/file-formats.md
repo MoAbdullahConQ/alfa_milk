@@ -25,37 +25,44 @@ cell text before any comparison.
 ### Header matching rule
 
 Normalize each header cell: `trim().toLowerCase()` and strip every character
-except `a-z0-9` (`"Cow No."` → `cowno`). Then match exact normalized names:
+except `a-z0-9` (`"Cow No."` → `cowno`). Then match required headers by
+**prefix** (`_headerMatches`): the real report's `Cow No.` header carries a
+trailing sort indicator and renders as `cowno1`, so an exact match would miss
+it. Prefix anchors used: `cowno` (cow), `mpcaddress` (unit), `milyield`/
+`milyeild` (yield), `milkdur` (duration). A header is matched if the normalized
+cell **starts with** the anchor (trimmed to the same length to avoid false
+prefix hits like `cownote`).
 
-| Normalized | Meaning                       |
-|------------|-------------------------------|
-| `cowno`    | cow number column             |
-| `mpcaddress` | unit column                 |
-| `milyield` / `milyeild` | milk yield column |
-| `milkdur`  | duration column               |
-
-> **PROVISIONAL (Constitution VI):** The variant spellings above
-> (`milyield`, `milyeild`) are best-effort guesses because the real fixture is
-> not yet in the repo. They MUST be confirmed against the actual
-> `test/fixtures/alpro_report.html` during T021 and corrected or removed —
-> never treated as authoritative. Do NOT add a bare `milk` fallback: it is too
-> broad and would risk matching unintended columns (e.g. an unrelated header).
-> Missing required column → `AlproParseError` listing the missing column name.
+> **Verified (2026-08-10):** the prefix rule (especially `cowno1`) was
+> confirmed against the real `test/fixtures/alpro_report.html` during T021.
+> The variant spellings `milyield`/`milyeild` were also confirmed against the
+> real header text. Missing required column → `AlproParseError` listing the
+> missing column name.
 
 ### Date/Session search
 
-Search the document text for label matches `date` and `session`
-(case-insensitive). Take the trimmed value that follows the label (a `<td>`
-sibling, a `: value` caption, or the nearest following single text node) —
-whichever the real fixture shows. If a label cannot be found, keep the column
-out of the output and surface a warning instead of failing.
+Two strategies, tried in order on the real reports (2026-08-10):
+
+1. **Pattern-based (primary):** the real report has no `Date:`/`Session:`
+   labels. A date token matching `dd.dd.dd` (e.g. `26.08.08`) is read from the
+   document text, and the active session number is parsed from the title
+   `"Session N"` (→ `1`/`2`/`3`).
+2. **Label-based (fallback):** search the document text for label matches
+   `date` and `session` (case-insensitive); take the trimmed value that follows
+   the label (a `<td>` sibling, a `: value` caption, or the nearest following
+   single text node) — whichever the fixture shows.
+
+If a value cannot be found, keep the column out of the output and surface a
+warning instead of failing.
 
 ### Row parsing
 
 For every data row in the located table: read the 4 required columns by their
 header index, build an `AlproRecord` (see `data-model.md`). A row with an
-unparsable cow number → whole report fails. Rows with missing `Milk Yield` or
-`Milk Dur.` → skipped with warning (FR-014).
+unparsable cow number → whole report fails. Rows with **truly empty** `Milk
+Yield` or `Milk Dur.` → skipped with warning (FR-014). Rows with a **non-empty**
+non-numeric yield or non-time duration (`-`, dry-cow rows) are **kept** and
+exported with `milkYield = 0.0` / `milkingTime = 0` — not skipped.
 
 ---
 
@@ -113,10 +120,14 @@ Date | Session | UnitNo | CowNumber | Milking Time | Milk yield | Conductivity |
 
 ### Output file name (FR-015)
 
-- Default: `DairySense_Import_YYYY-MM-DD_HHmmss.xlsx` (conversion time).
-- Offered via the native save dialog (editable by the user).
-- Existing file with the same name → `OutputWriteError` with a friendly
-  message; user retries with another name/folder.
+- Default: `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx` (conversion
+  time, 12-hour am/pm; e.g. `DairySense_Import_2026-08-10_11.13 am.xlsx`).
+- Offered via the native save dialog (editable by the user; the user picks the
+  destination each time — the source report is never used as the output path).
+- Write failure (existing/locked file) → `OutputWriteFailure` with a friendly
+  message; the save dialog re-opens for the user to retry (FR-017).
+- Cancelling the save dialog or the missing-cow dialog resets the cubit to
+  idle: no file, no dialog, `CONVERT` re-enabled.
 
 ---
 

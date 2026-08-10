@@ -32,12 +32,14 @@ implementer: few files, few packages, no metaprogramming, no exotic APIs.
 
 ## 3. File / Folder Dialogs (Windows)
 
-- **Decision**: Use the `file_picker` package.
+- **Decision**: Use the `file_picker` package (v11, static API).
 - **Rationale**: Single API for all three needs: pick HTML file
-  (`FileType.custom`, `allowedExtensions: ['html']`), pick cow-list Excel
-  (`['xlsx']`), and save the output (`FilePicker.platform.saveFile(...)` with
-  an editable default file name — this satisfies FR-015 "user MUST be able to
-  edit the file name" with NO custom dialog code).
+  (`FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['html'])`),
+  pick cow-list Excel (`['xlsx']`), and save the output
+  (`FilePicker.saveFile(...)` with an editable default file name — this
+  satisfies FR-015 "user MUST be able to edit the file name" with NO custom
+  dialog code). In v11 these are static methods on `FilePicker`, not
+  `FilePicker.platform.*`.
 - **Alternatives considered**:
   - `file_selector` (flutter.dev) — also fine; `file_picker` is more common in
     examples, which helps a cheap model.
@@ -107,6 +109,17 @@ implementer: few files, few packages, no metaprogramming, no exotic APIs.
 - **Alternatives considered**: Guessing exact markup now — rejected
   (Constitution Principle VI: never invent formats).
 
+### Implemented for the real Alpro reports (2026-08-10)
+
+The real files use a header cell `Cow No.` that includes a trailing sort
+indicator (renders as `cowno1`), so required headers are matched by **prefix**
+(`_headerMatches`). Report-level `Date`/`Session` have no `Date:`/`Session:`
+labels; instead a **pattern** extractor reads the date token (`26.08.08`) and
+the active session number from "Session N" in the title (`1`/`2`/`3`),
+with label-based extraction retained as a fallback. Dry-cow rows
+(`Milk Yield 0` / `Milk Dur. -`) are kept and exported as `0` rather than
+skipped.
+
 ## 9. DairySense Output Workbook
 
 - **Decision**: One sheet, first row = the 8 required headers
@@ -124,9 +137,13 @@ implementer: few files, few packages, no metaprogramming, no exotic APIs.
 
 ## 10. Output File Name (FR-015)
 
-- **Decision**: Default `DairySense_Import_YYYY-MM-DD_HHmmss.xlsx` (time of
-  conversion) offered through the native save dialog; the user can edit it
-  there. If the file exists, the app shows a friendly "file already exists —
-  choose another name or folder" error and lets the user retry.
+- **Decision**: Default `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx`
+  (time of conversion, **12-hour** am/pm, e.g.
+  `DairySense_Import_2026-08-10_11.13 am.xlsx`) offered through the native save
+  dialog; the user can edit it there. If writing fails (file exists / locked /
+  read-only), the app shows a friendly "could not be saved" message and re-opens
+  the save dialog to retry.
 - **Rationale**: Timestamped default avoids mostly the collision case; the save
-  dialog makes the name editable with zero custom UI.
+  dialog makes the name editable with zero custom UI. Cancelling the save dialog
+  (or the missing-cow dialog) resets the cubit so `CONVERT` is immediately
+  re-enabled, no file is created, and no dialog is shown.

@@ -17,13 +17,17 @@ One milking event row parsed from the Alpro HTML table.
 |------------|--------|-----------------|----------|------------------------------------------|
 | cowNumber  | int    | `Cow No.`       | no       | normalized (see FR-005)                  |
 | unitNo     | String | `MPC Address`   | yes      | empty string if missing                  |
-| milkYield  | double | `Milk Yield`    | yes      | null if missing/invalid                  |
-| milkDur    | String | `Milk Dur.`     | yes      | `HH:MM:SS`; null if missing/invalid      |
+| milkYield  | double | `Milk Yield`    | yes      | `0.0` for non-numeric (e.g. `-`)         |
+| milkDur    | String | `Milk Dur.`     | yes      | `HH:MM:SS`; kept raw, `-`/non-time → 0s  |
 
 ### Validation rules
 
-- Row is **skipped with a warning** (FR-014) when `milkYield` is null OR
-  `milkDur` is null or not `HH:MM:SS`. `unitNo` missing does NOT skip.
+- Row is **skipped with a warning** (FR-014) only when `milkYield` OR `milkDur`
+  is **truly empty** (blank cell).
+- A **non-empty** non-numeric yield (e.g. `-`) and a **non-time** duration
+  (e.g. `-`) mean the cow was not milked that session (dry cow): the row is
+  **kept** and exported with `milkYield = 0.0` and `milkingTime = 0` seconds
+  (`BuildDairySenseRowsUseCase` maps `?? 0`). `unitNo` missing does NOT skip.
 - A row whose `cowNumber` cannot be parsed is invalid for the whole report:
   **report parse fails** with a clear message (a real Alpro report row must
   have a cow number). Never silently drop an unparsable cow row.
@@ -40,7 +44,10 @@ Result of parsing the HTML document.
 | warnings  | List\<String\>      | FR-014 skips reported here           |
 
 `date` and `session` keep their raw (trimmed) textual values; formatting for
-the output workbook is done in the writer in one obvious place.
+the output workbook is done in the writer in one obvious place. On the real
+Alpro reports they are extracted from the document text: Date `26.08.08` and
+Session `1`/`2`/`3` (from "Session N" in the title); label-based
+`date`/`session` extraction is kept as a fallback.
 
 ## 3. CowList
 
