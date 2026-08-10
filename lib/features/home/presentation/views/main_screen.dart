@@ -90,8 +90,16 @@ class MainScreenState extends State<MainScreen> {
       );
     } on CowListError catch (e) {
       if (mounted) showErrorDialog(context, e.toString());
-    } catch (e) {
-      if (mounted) showErrorDialog(context, 'The cow list could not be read: $e');
+    } catch (_) {
+      // Never leak a raw exception/stack trace (FR-017, Principle IV). This
+      // also covers unexpected I/O failures while persisting the new list.
+      if (mounted) {
+        showErrorDialog(
+          context,
+          'The cow list could not be read or saved. '
+              'Please make sure the file is a valid XLSX workbook and try again.',
+        );
+      }
     }
   }
 
