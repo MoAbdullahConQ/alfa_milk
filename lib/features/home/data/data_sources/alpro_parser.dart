@@ -27,13 +27,13 @@ AlproReport parseAlproReport(String htmlString) {
     throw const AlproParseError('no data table containing cow numbers found');
   }
 
-  final date = _extractLabel(document, 'date');
-  final session = _extractLabel(document, 'session');
+  final date = _extractDate(document);
+  final session = _extractSession(document);
   if (date == null) {
-    warnings.add('Date label not found; Date column left out of output.');
+    warnings.add('Date not found; Date column left out of output.');
   }
   if (session == null) {
-    warnings.add('Session label not found; Session column left out of output.');
+    warnings.add('Session not found; Session column left out of output.');
   }
 
   final records = <AlproRecord>[];
@@ -58,15 +58,19 @@ AlproReport parseAlproReport(String htmlString) {
     }
 
     final yieldRaw =
-        values['milkyield'] ?? values['milyield'] ?? values['milyeild'];
-    final milkDur = values['milkdur'];
-    final double? milkYield = double.tryParse((yieldRaw ?? '').trim());
+        (values['milkyield'] ?? values['milyield'] ?? values['milyeild'] ?? '')
+            .trim();
+    final milkDur = (values['milkdur'] ?? '').trim();
 
-    if (milkYield == null || milkDur == null || durationToSeconds(milkDur) == null) {
-      warnings.add(
-          'Skipped cow $cowNumber: missing or invalid Milk Yield or Milk Dur.');
+    // Only a truly empty cell means "no data" → skip. A non-numeric yield
+    // (e.g. "-") and a non-time duration (e.g. "-") mean the cow was not
+    // milked that session; they are kept and exported as 0 by the row builder.
+    if (yieldRaw.isEmpty || milkDur.isEmpty) {
+      warnings.add('Skipped cow $cowNumber: missing Milk Yield or Milk Dur.');
       continue;
     }
+
+    final double milkYield = double.tryParse(yieldRaw) ?? 0.0;
 
     records.add(AlproRecord(
       cowNumber: cowNumber,
@@ -139,6 +143,34 @@ _ReportTable? _locateReportTable(dom.Document document, List<String> warnings) {
 /// column names, never to a bare `milk`/`cow` fallback (contracts §1).
 bool _headerMatches(String normalized, String name) =>
     normalized == name || normalized.startsWith(name);
+
+/// Extract the report Date: first via a `Date` label/value pair, then by
+/// scanning for a date token in the document text (handles the real Alpro
+/// format, e.g. `26.08.08` in "ALPRO Time: 0:15  26.08.08").
+String? _extractDate(dom.Document document) =>
+    _extractLabel(document, 'date') ?? _extractPatternDate(document);
+
+final _isoDatePattern = RegExp(r'\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b');
+final _shortDatePattern = RegExp(r'\b\d{1,2}[./]\d{1,2}[./]\d{2}\b');
+
+String? _extractPatternDate(dom.Document document) {
+  final text = document.body?.text ?? '';
+  return _isoDatePattern.firstMatch(text)?.group(0) ??
+      _shortDatePattern.firstMatch(text)?.group(0);
+}
+
+/// Extract the report Session: first via a `Session` label/value pair, then by
+/// reading the active session number from "Session N" (e.g. the report title
+/// "ID Performance Details: Today, Session 1").
+String? _extractSession(dom.Document document) =>
+    _extractLabel(document, 'session') ?? _extractPatternSession(document);
+
+final _sessionPattern = RegExp(r'Session\s+(\d+)');
+
+String? _extractPatternSession(dom.Document document) {
+  final text = document.body?.text ?? '';
+  return _sessionPattern.firstMatch(text)?.group(1);
+}
 
 /// Find a label (`date`/`session`) and return the value that follows it.
 String? _extractLabel(dom.Document document, String label) {

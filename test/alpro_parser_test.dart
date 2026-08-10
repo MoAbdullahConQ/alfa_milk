@@ -105,5 +105,37 @@ void main() {
       );
       expect(report.warnings, isNotEmpty);
     });
+
+    test('keeps dry-cow rows (Milk Yield 0 / Milk Dur -) instead of skipping',
+        () {
+      final html = _reportHtml(
+        dataRows: '''
+      <tr><td>5</td><td>UNIT1</td><td>12.5</td><td>00:03:00</td></tr>
+      <tr><td>12</td><td>UNIT2</td><td>0.00</td><td>-</td></tr>''',
+      );
+      final report = parseAlproReport(html);
+
+      expect(report.records, hasLength(2));
+      final dry = report.records.last;
+      expect(dry.cowNumber, 12);
+      expect(dry.milkYield, 0.0);
+      expect(dry.milkDur, '-');
+    });
+
+    test('extracts Date and Session from the real Alpro format', () {
+      final report = parseAlproReport('''
+<html><body>
+  <tr><td>ALPRO Time: 0:15 &nbsp; 26.08.08</td></tr>
+  <td><font>ID Performance Details: Today, Session  3</font></td>
+  <table>
+    <tr><th>Cow No.</th><th>MPC Address</th><th>Milk Yield</th><th>Milk Dur.</th></tr>
+    <tr><td>5</td><td>UNIT1</td><td>12.5</td><td>00:03:00</td></tr>
+  </table>
+</body></html>''');
+
+      expect(report.date, '26.08.08');
+      expect(report.session, '3');
+      expect(report.records, hasLength(1));
+    });
   });
 }

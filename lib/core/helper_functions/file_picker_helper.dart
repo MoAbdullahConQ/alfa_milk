@@ -29,13 +29,15 @@ Future<String?> pickOutputXlsxPath() {
   );
 }
 
-/// `DairySense_Import_<YYYY-MM-DD_HHmmss>.xlsx`, e.g.
-/// `DairySense_Import_2026-08-10_153045.xlsx`.
+/// `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx`, e.g.
+/// `DairySense_Import_2026-08-10_11.13 am.xlsx`.
 String _defaultOutputFileName() {
   final now = DateTime.now();
   String two(int n) => n.toString().padLeft(2, '0');
   final date = '${now.year.toString().padLeft(4, '0')}-${two(now.month)}-'
       '${two(now.day)}';
-  final time = '${two(now.hour)}${two(now.minute)}${two(now.second)}';
+  final hour12 = now.hour % 12 == 0 ? 12 : now.hour % 12;
+  final period = now.hour < 12 ? 'am' : 'pm';
+  final time = '$hour12.${two(now.minute)} $period';
   return 'DairySense_Import_${date}_$time.xlsx';
 }

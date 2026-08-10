@@ -118,6 +118,21 @@ void main() {
       expect(row.conductivity, 0);
       expect(row.temperature, 0);
     });
+
+    test('maps a "-" duration and 0 yield to 0 seconds / 0.0', () {
+      final report = AlproReport(
+        date: '26.08.08',
+        session: '1',
+        records: const [
+          AlproRecord(cowNumber: 12, milkYield: 0.0, milkDur: '-'),
+        ],
+      );
+      final rows =
+          BuildDairySenseRowsUseCase().call(report, report.records);
+      final row = rows.first;
+      expect(row.milkingTime, 0);
+      expect(row.milkYield, 0.0);
+    });
   });
 
   group('writeDairySenseXlsx (contracts §3)', () {
