@@ -13,8 +13,10 @@ class CowListCard extends StatelessWidget {
   static String _formatDateTime(DateTime d) {
     final local = d.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
+    final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final period = local.hour < 12 ? 'am' : 'pm';
     return '${local.year}-${two(local.month)}-${two(local.day)} - '
-        '${two(local.hour)}:${two(local.minute)}';
+        '$hour12.${two(local.minute)} $period';
   }
 
   @override
