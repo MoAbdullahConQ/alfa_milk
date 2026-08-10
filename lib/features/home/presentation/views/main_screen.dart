@@ -95,23 +95,6 @@ class MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _convert() async {
-    final htmlPath = selectedHtmlPath;
-    if (htmlPath == null) {
-      showErrorDialog(context, 'Select an Alpro HTML report before converting.');
-      return;
-    }
-    if (activeCowList == null) {
-      showErrorDialog(context, 'Import a current cow list before converting.');
-      return;
-    }
-    await _conversionCubit.convert(
-      alproHtmlPath: htmlPath,
-      cowList: activeCowList,
-      outputXlsxPath: htmlPath, // placeholder; real save flow lands in US4
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -130,8 +113,8 @@ class MainScreenState extends State<MainScreen> {
               const SizedBox(height: 16),
               ReportConvertView(
                 selectedHtmlPath: selectedHtmlPath,
+                activeCowList: activeCowList,
                 onSelectHtml: _selectHtml,
-                onConvert: _convert,
               ),
             ],
           ),

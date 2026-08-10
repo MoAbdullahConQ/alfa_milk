@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/errors/custom_exceptions.dart';
 import '../../../../../core/helper_functions/error_dialog.dart';
 import '../../../../../core/helper_functions/show_conversion_summary.dart';
+import '../../../../../core/helper_functions/show_missing_cows_dialog.dart';
+import '../../../../home/domain/entities/alpro_report.dart';
+import '../../../../home/domain/entities/cow_list.dart';
+import '../../../../home/domain/use_cases/detect_missing_cows_use_case.dart';
+import '../../../../home/domain/use_cases/filter_records_use_case.dart';
 import '../../manager/conversion_cubit/conversion_cubit.dart';
 
 /// The User Story 1 report-convert UI: select an Alpro HTML report and run the
-/// conversion pipeline. Reads busy/result/failure from the [ConversionCubit].
+/// conversion pipeline. The [CONVERT] handler runs a preview (parse + filter +
+/// detect missing cows) and, when cows are missing, asks the user whether to
+/// continue (US3, FR-010/FR-011/FR-021).
 class ReportConvertView extends StatelessWidget {
   const ReportConvertView({
     super.key,
     required this.selectedHtmlPath,
+    required this.activeCowList,
     required this.onSelectHtml,
-    required this.onConvert,
   });
 
   final String? selectedHtmlPath;
+  final CowList? activeCowList;
   final VoidCallback onSelectHtml;
-  final VoidCallback onConvert;
 
   void _handleState(BuildContext context, ConversionState state) {
     if (state is ConversionSuccess) {
@@ -25,6 +33,71 @@ class ReportConvertView extends StatelessWidget {
     } else if (state is ConversionFailure) {
       showErrorDialog(context, state.errMessage);
     }
+  }
+
+  /// The [CONVERT] handler: guard, preview, missing-cow dialog, then write.
+  Future<void> _convert(BuildContext context) async {
+    final cubit = BlocProvider.of<ConversionCubit>(context);
+    final htmlPath = selectedHtmlPath;
+    final cowList = activeCowList;
+
+    if (htmlPath == null) {
+      showErrorDialog(
+          context, 'Select an Alpro HTML report before converting.');
+      return;
+    }
+    // No-cow-list guard (C1): reserved for *having no list*, and must not
+    // fall through to the FR-021 zero-match message.
+    if (cowList == null) {
+      showErrorDialog(context, NoCowListError.instance.toString());
+      return;
+    }
+
+    cubit.showLoading();
+
+    // Preview: parse + filter + detect missing cows (no write).
+    final parsed = await cubit.convertReportUseCase.conversionRepo
+        .parseAlproReport(htmlPath);
+    if (!context.mounted) return;
+    final preview = parsed.fold(
+      (failure) {
+        showErrorDialog(context, failure.message);
+        return null;
+      },
+      (report) => _preview(report, cowList),
+    );
+    if (preview == null) return; // parse error already shown
+
+    // FR-021: having a list but matching nothing → explain, create NO file.
+    if (preview.found == 0) {
+      showErrorDialog(context,
+          'No records matched the current cow list; nothing to export.');
+      return;
+    }
+
+    // FR-010/FR-011: missing cows → ask before exporting only the found ones.
+    if (preview.missing.isNotEmpty) {
+      final proceed = await showMissingCowsDialog(context, preview.missing);
+      if (!proceed || !context.mounted) return; // Cancel → no file created
+    }
+
+    await cubit.convert(
+      alproHtmlPath: htmlPath,
+      cowList: cowList,
+      outputXlsxPath: htmlPath, // placeholder; save flow lands in US4 (T019)
+    );
+  }
+
+  /// Pure preview: which cows matched and which are missing (sorted ascending).
+  ({int found, List<int> missing}) _preview(
+      AlproReport report, CowList cowList) {
+    final matched = FilterRecordsUseCase().call(
+        report.records, cowList.cowNumbers);
+    final missing = DetectMissingCowsUseCase().call(
+      selected: cowList.cowNumbers,
+      inReport: report.records.map((r) => r.cowNumber).toSet(),
+    );
+    return (found: matched.length, missing: missing);
   }
 
   @override
@@ -62,7 +135,7 @@ class ReportConvertView extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       FilledButton.icon(
-                        onPressed: busy ? null : onConvert,
+                        onPressed: busy ? null : () => _convert(context),
                         icon: busy
                             ? const SizedBox(
                                 width: 16,

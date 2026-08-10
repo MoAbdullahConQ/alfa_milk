@@ -13,6 +13,9 @@ class ConversionCubit extends Cubit<ConversionState> {
   ConversionCubit({required this.convertReportUseCase})
       : super(ConversionInitial());
 
+  /// Show a loading state for UI work that precedes the write (e.g. preview).
+  void showLoading() => emit(ConversionLoading());
+
   /// Runs the pipeline. Callers pass the output path (save flow lands in US4).
   Future<void> convert({
     required String alproHtmlPath,
