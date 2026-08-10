@@ -18,6 +18,10 @@ class ConversionCubit extends Cubit<ConversionState> {
   /// Show a loading state for UI work that precedes the write (e.g. preview).
   void showLoading() => emit(ConversionLoading());
 
+  /// Reset to the idle state, re-enabling the CONVERT button. Called when the
+  /// user cancels any step of the flow so the UI is never stuck loading.
+  void reset() => emit(ConversionInitial());
+
   /// Runs the pipeline. Callers pass the output path (chosen via the save flow).
   ///
   /// Emits the loading/success/failure states for the UI and also returns the

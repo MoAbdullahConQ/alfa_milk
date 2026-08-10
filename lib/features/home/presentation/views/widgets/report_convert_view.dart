@@ -53,27 +53,36 @@ class ReportConvertView extends StatelessWidget {
     // Preview: parse + filter + detect missing cows (no write).
     final parsed = await cubit.convertReportUseCase.conversionRepo
         .parseAlproReport(htmlPath);
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      cubit.reset();
+      return;
+    }
     final preview = parsed.fold(
       (failure) {
         showErrorDialog(context, failure.message);
+        cubit.reset();
         return null;
       },
       (report) => _preview(report, cowList),
     );
-    if (preview == null) return; // parse error already shown
+    if (preview == null) return; // parse error already shown + reset above
 
     // FR-021: having a list but matching nothing → explain, create NO file.
     if (preview.found == 0) {
       showErrorDialog(context,
           'No records matched the current cow list; nothing to export.');
+      cubit.reset();
       return;
     }
 
     // FR-010/FR-011: missing cows → ask before exporting only the found ones.
     if (preview.missing.isNotEmpty) {
       final proceed = await showMissingCowsDialog(context, preview.missing);
-      if (!proceed || !context.mounted) return; // Cancel → no file created
+      if (!proceed || !context.mounted) {
+        // Cancel → no file created; re-enable CONVERT.
+        cubit.reset();
+        return;
+      }
     }
 
     // US4 save flow (T019): the user picks the destination every time; the
@@ -82,7 +91,11 @@ class ReportConvertView extends StatelessWidget {
     // and let the user pick again (FR-017).
     while (true) {
       final String? outputPath = await pickOutputXlsxPath();
-      if (outputPath == null || !context.mounted) return; // cancelled → no file
+      if (outputPath == null || !context.mounted) {
+        // Cancelled the save dialog → no file; re-enable CONVERT.
+        cubit.reset();
+        return;
+      }
 
       final result = await cubit.convert(
         alproHtmlPath: htmlPath,
@@ -100,12 +113,16 @@ class ReportConvertView extends StatelessWidget {
         showErrorDialog(context,
             'The DairySense file could not be saved to that location. '
                 'Choose another folder and try again.');
+        cubit.reset();
         continue; // re-open the save dialog
       }
 
       // Otherwise surface the outcome (friendly error or success summary).
       result.fold(
-        (failure) => showErrorDialog(context, failure.message),
+        (failure) {
+          showErrorDialog(context, failure.message);
+          cubit.reset();
+        },
         (conversionResult) =>
             showConversionSummary(context, conversionResult),
       );

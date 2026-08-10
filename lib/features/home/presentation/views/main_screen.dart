@@ -86,7 +86,7 @@ class MainScreenState extends State<MainScreen> {
         message += '\n${result.warnings.length} non-numeric value(s) skipped.';
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(content: SelectableText(message)),
       );
     } on CowListError catch (e) {
       if (mounted) showErrorDialog(context, e.toString());

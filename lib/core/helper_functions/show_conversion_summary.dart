@@ -2,7 +2,8 @@
 import 'package:alfa_milk/features/home/domain/entities/conversion_result.dart';
 import 'package:flutter/material.dart';
 
-/// Render the post-conversion summary inside a dialog.
+/// Render the post-conversion summary inside a dialog. Values are
+/// selectable/copyable.
 void showConversionSummary(
     BuildContext context, ConversionResult result) {
   showDialog<void>(
@@ -38,5 +39,5 @@ void showConversionSummary(
 
 Widget _row(String label, String value) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text('$label: $value'),
+      child: SelectableText('$label: $value'),
     );
