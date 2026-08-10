@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/errors/custom_exceptions.dart';
+import '../../../../../core/errors/failures.dart';
 import '../../../../../core/helper_functions/error_dialog.dart';
+import '../../../../../core/helper_functions/file_picker_helper.dart';
 import '../../../../../core/helper_functions/show_conversion_summary.dart';
 import '../../../../../core/helper_functions/show_missing_cows_dialog.dart';
 import '../../../../home/domain/entities/alpro_report.dart';
@@ -14,7 +16,8 @@ import '../../manager/conversion_cubit/conversion_cubit.dart';
 /// The User Story 1 report-convert UI: select an Alpro HTML report and run the
 /// conversion pipeline. The [CONVERT] handler runs a preview (parse + filter +
 /// detect missing cows) and, when cows are missing, asks the user whether to
-/// continue (US3, FR-010/FR-011/FR-021).
+/// continue (US3, FR-010/FR-011/FR-021). It then always asks where to save the
+/// output (US4, FR-015) and writes only to the chosen location (T019).
 class ReportConvertView extends StatelessWidget {
   const ReportConvertView({
     super.key,
@@ -27,15 +30,7 @@ class ReportConvertView extends StatelessWidget {
   final CowList? activeCowList;
   final VoidCallback onSelectHtml;
 
-  void _handleState(BuildContext context, ConversionState state) {
-    if (state is ConversionSuccess) {
-      showConversionSummary(context, state.conversionResult);
-    } else if (state is ConversionFailure) {
-      showErrorDialog(context, state.errMessage);
-    }
-  }
-
-  /// The [CONVERT] handler: guard, preview, missing-cow dialog, then write.
+  /// The [CONVERT] handler: guard, preview, missing-cow dialog, then save flow.
   Future<void> _convert(BuildContext context) async {
     final cubit = BlocProvider.of<ConversionCubit>(context);
     final htmlPath = selectedHtmlPath;
@@ -81,11 +76,41 @@ class ReportConvertView extends StatelessWidget {
       if (!proceed || !context.mounted) return; // Cancel → no file created
     }
 
-    await cubit.convert(
-      alproHtmlPath: htmlPath,
-      cowList: cowList,
-      outputXlsxPath: htmlPath, // placeholder; save flow lands in US4 (T019)
-    );
+    // US4 save flow (T019): the user picks the destination every time; the
+    // source report is never used as the output path. On an output-write
+    // failure (e.g. a locked/read-only location) we show a friendly message
+    // and let the user pick again (FR-017).
+    while (true) {
+      final String? outputPath = await pickOutputXlsxPath();
+      if (outputPath == null || !context.mounted) return; // cancelled → no file
+
+      final result = await cubit.convert(
+        alproHtmlPath: htmlPath,
+        cowList: cowList,
+        outputXlsxPath: outputPath,
+      );
+      if (!context.mounted) return;
+
+      // Retry loop only on an output-write failure (FR-017).
+      final writeFailure = result.fold<OutputWriteFailure?>(
+        (f) => f is OutputWriteFailure ? f : null,
+        (_) => null,
+      );
+      if (writeFailure != null) {
+        showErrorDialog(context,
+            'The DairySense file could not be saved to that location. '
+                'Choose another folder and try again.');
+        continue; // re-open the save dialog
+      }
+
+      // Otherwise surface the outcome (friendly error or success summary).
+      result.fold(
+        (failure) => showErrorDialog(context, failure.message),
+        (conversionResult) =>
+            showConversionSummary(context, conversionResult),
+      );
+      return;
+    }
   }
 
   /// Pure preview: which cows matched and which are missing (sorted ascending).
@@ -105,53 +130,49 @@ class ReportConvertView extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: BlocListener<ConversionCubit, ConversionState>(
-          listener: _handleState,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Alpro Report',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              BlocBuilder<ConversionCubit, ConversionState>(
-                builder: (context, state) {
-                  final busy = state is ConversionLoading;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onSelectHtml,
-                        icon: const Icon(Icons.description_outlined),
-                        label: const Text('Select HTML file'),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        selectedHtmlPath == null
-                            ? 'No report selected.'
-                            : selectedHtmlPath!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: busy ? null : () => _convert(context),
-                        icon: busy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.swap_horiz),
-                        label: const Text('CONVERT'),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Alpro Report',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            BlocBuilder<ConversionCubit, ConversionState>(
+              builder: (context, state) {
+                final busy = state is ConversionLoading;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : onSelectHtml,
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text('Select HTML file'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      selectedHtmlPath == null
+                          ? 'No report selected.'
+                          : selectedHtmlPath!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: busy ? null : () => _convert(context),
+                      icon: busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.swap_horiz),
+                      label: const Text('CONVERT'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

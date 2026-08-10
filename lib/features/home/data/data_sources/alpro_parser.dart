@@ -93,7 +93,7 @@ _ReportTable? _locateReportTable(dom.Document document, List<String> warnings) {
       final normalized =
           cells.map((c) => normalizeHeader(c)).toList(growable: false);
 
-      final cowIndex = normalized.indexOf('cowno');
+      final cowIndex = normalized.indexWhere((n) => _headerMatches(n, 'cowno'));
       if (cowIndex == -1) continue;
 
       final columns = <String, int>{};
@@ -102,12 +102,14 @@ _ReportTable? _locateReportTable(dom.Document document, List<String> warnings) {
       int? durIndex;
       for (var i = 0; i < normalized.length; i++) {
         final n = normalized[i];
-        if (n == 'mpcaddress' && mpcIndex == null) mpcIndex = i;
-        if ((n == 'milyield' || n == 'milyeild' || n == 'milkyield') &&
-            yieldIndex == null) {
+        if (mpcIndex == null && _headerMatches(n, 'mpcaddress')) mpcIndex = i;
+        if (yieldIndex == null &&
+            (_headerMatches(n, 'milyield') ||
+                _headerMatches(n, 'milyeild') ||
+                _headerMatches(n, 'milkyield'))) {
           yieldIndex = i;
         }
-        if (n == 'milkdur' && durIndex == null) durIndex = i;
+        if (durIndex == null && _headerMatches(n, 'milkdur')) durIndex = i;
       }
 
       if (yieldIndex == null) {
@@ -128,6 +130,15 @@ _ReportTable? _locateReportTable(dom.Document document, List<String> warnings) {
   }
   return null;
 }
+
+/// Whether a normalized header matches the expected name.
+///
+/// Tolerates a trailing sort-indicator digit (e.g. "Cow No." rendered with an
+/// ascending/descending arrow and its order number renders as `cowno1`, which
+/// still identifies the cow-number column). Only applies to known required
+/// column names, never to a bare `milk`/`cow` fallback (contracts §1).
+bool _headerMatches(String normalized, String name) =>
+    normalized == name || normalized.startsWith(name);
 
 /// Find a label (`date`/`session`) and return the value that follows it.
 String? _extractLabel(dom.Document document, String label) {

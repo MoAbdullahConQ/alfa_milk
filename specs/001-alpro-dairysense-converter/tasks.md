@@ -122,7 +122,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T019 [US4] Save flow in `lib/features/home/presentation/views/widgets/report_convert_view.dart` (after T018's Continue): `FilePicker.platform.saveFile(fileName: 'DairySense_Import_<YYYY-MM-DD_HHmmss>.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'])` (FR-015 — native dialog makes the name editable, no custom UI); then run the write in `Isolate.run` calling `runConversion` with the chosen path; existing-file collision → friendly `OutputWriteError` message and retry (FR-017). Depends on T018
+- [X] T019 [US4] Save flow in `lib/features/home/presentation/views/widgets/report_convert_view.dart` (after T018's Continue): `FilePicker.platform.saveFile(fileName: 'DairySense_Import_<YYYY-MM-DD_HHmmss>.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'])` (FR-015 — native dialog makes the name editable, no custom UI); then run the write in `Isolate.run` calling `runConversion` with the chosen path; existing-file collision → friendly `OutputWriteError` message and retry (FR-017). Depends on T018
 - [ ] T020 [US4] Error handling in `lib/features/home/presentation` + `lib/main.dart`: wrap every pipeline call and show `AlertDialog` with the typed message for `AlproParseError`, `CowListError`, `OutputWriteError`, `NoCowListError` ("Import a current cow list before converting."); NEVER show a raw stack trace to the user (FR-017, Principle IV). The data layer MUST also map an empty `cowNumbers` set to `NoCowListFailure` so the no-list behavior is unit-testable (see T018's guard and the new T026 test). Depends on T019
 
 **Checkpoint**: Folder picker appears on every conversion; all failures are user-friendly and retryable.
