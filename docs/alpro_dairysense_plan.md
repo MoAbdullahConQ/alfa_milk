@@ -1,5 +1,14 @@
 # Alpro → DairySense Milk Data Converter
 
+> **Implementation status (2026-08-10):** Phases 1–6 of the Spec Kit plan are
+> implemented (US1–US4). The real Alpro reports (`Session1 8-8`, `Session2 7-8`,
+> `session 3 7-8`) parse and convert end-to-end (147 / 127 / 140 records; Date
+> `26.08.08`; Session `1/2/3`; dry cows → `0`). Remaining work is Phase 7
+> (integration test on real fixtures, perf/non-mutation tests, quality gates).
+> See `tasks.md` (authoritative) and the Spec Kit under
+> `specs/001-alpro-dairysense-converter/`. Decisions marked **\[decided\]**
+> below are confirmed by implementation/real files.
+
 ## 1. Project Overview
 
 Build a Flutter desktop application, primarily targeting Windows, that acts as a local data bridge between:
@@ -136,7 +145,8 @@ Rules:
 
 ## 5. Input: Alpro HTML
 
-The supplied Alpro report contains approximately 147 records.
+The supplied Alpro reports contain approximately 147 records per session
+(real: Session1=147, Session2=127, Session3=140).
 
 Relevant fields identified so far:
 
@@ -252,7 +262,12 @@ Formula:
 hours × 3600 + minutes × 60 + seconds
 ```
 
-Missing/invalid duration must be handled gracefully and specified before implementation.
+Missing/invalid duration must be handled gracefully and specified before
+implementation.
+
+**\[decided\]** A *truly empty* yield/dur cell is skipped with a warning; a
+*non-empty* non-numeric yield or non-time duration (`-`, a cow not milked that
+session) is kept and exported as `0` (`milkYield = 0.0`, `milkingTime = 0`).
 
 ### Conductivity
 
@@ -328,7 +343,11 @@ Suggested filename:
 DairySense_Import_YYYY-MM-DD.xlsx
 ```
 
-The exact naming convention can be finalized during clarification.
+**\[decided\]** Final default (editable in the native save dialog, chosen every
+time): 12-hour `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx` (e.g.
+`DairySense_Import_2026-08-10_11.13 am.xlsx`). A write failure (existing/locked
+file) shows a friendly message and re-opens the dialog to retry; cancelling the
+dialog resets the UI with no file created.
 
 ---
 
@@ -552,7 +571,7 @@ Cover (implemented in `test/alpro_parser_test.dart` and `test/converter_test.dar
 Use the supplied files:
 
 ```text
-Alpro HTML
+Alpro HTML (real: Session1/Session2/session3 reports)
 +
 Cow-number Excel
 ↓
@@ -684,22 +703,25 @@ After successful conversion:
 - always ask the user for a destination folder;
 - save the generated workbook there.
 
+All acceptance scenarios A–E are implemented (see Phase 3–6 in `tasks.md`).
+
 ---
 
 ## 22. Open Questions for Spec Kit Clarification
 
-These should be resolved before the final implementation plan:
+These should be resolved before the final implementation plan.
 
-1. Is the cow number always in one fixed Excel column/header, or should the app detect it automatically?
-2. What exact date format does DairySense require?
-3. Can Alpro reports contain sessions other than Session 1?
-4. What should happen when a selected cow has missing `Milk Dur.`?
-5. What should happen when `Milk Yield` is missing/invalid?
-6. Are cow numbers always integers, or can they contain leading zeros/alphanumeric IDs?
-7. Is there a required output filename?
-8. Must the output workbook have exactly one sheet or a specific sheet name?
-9. Should the app support drag-and-drop?
-10. Should there be a preview of the filtered records before export?
+**\[decided\]** (confirmed by real files / implementation):
+- Cow-number column: auto-detected (`Cow Number` header, fallback to first numeric column).
+- Date format: pass-through of the Alpro Date token (e.g. `26.08.08`), not the computer's date.
+- Sessions: extracted from the report title "Session N" → `1`/`2`/`3`, not hard-coded to Session 1.
+- Missing/invalid `Milk Dur.`/`Milk Yield`: truly empty → skipped with warning; dry-cow `-` → kept and exported as `0`.
+- Output filename: `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx` (12-hour, editable).
+
+Still open / non-MVP:
+- Cow numbers are integers (assumed; normalization trims/parses — leading-zero IDs not needed).
+- Exact sheet name / multiple sheets (single sheet, 8 fixed headers; verify against template when available).
+- Drag-and-drop and a full filtered-record preview are not in MVP scope.
 
 ---
 
@@ -805,11 +827,16 @@ confirmations, and results.
 
 The project should use the supplied real files as fixtures/reference material:
 
-- Alpro HTML report containing approximately 147 records.
+- Alpro HTML reports (three sessions: `Session1 8-8.htm.html`,
+  `Session2 7-8.htm.html`, `session 3 7-8.htm.html`).
 - DairySense import Excel template.
 - Current DairySense cow-number Excel list.
 
-The implementation must inspect the actual files during Spec Kit research and must not invent their structure.
+The implementation must inspect the actual files and must not invent their
+structure. The Alpro reports have been inspected and the parser verified
+against them (prefix header matching, dry-cow handling, real Date/Session
+extraction); the cow-list and template files are still to be copied into
+`test/fixtures/` for the integration test.
 
 ---
 
