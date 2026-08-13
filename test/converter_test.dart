@@ -13,15 +13,6 @@ import 'package:alfa_milk/features/home/domain/use_cases/build_dairy_sense_rows_
 import 'package:alfa_milk/features/home/domain/use_cases/detect_missing_cows_use_case.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/filter_records_use_case.dart';
 
-Object? _rawValue(Data? data) {
-  final cv = data?.value;
-  if (cv is TextCellValue) return cv.value.toString();
-  if (cv is IntCellValue) return cv.value;
-  if (cv is DoubleCellValue) return cv.value;
-  if (cv is BoolCellValue) return cv.value;
-  return cv?.toString();
-}
-
 void main() {
   group('normalizeCowNumber (FR-005)', () {
     test('trims and parses integers and double-with-.0', () {
@@ -89,6 +80,70 @@ void main() {
     });
   });
 
+  group('durationToHhMm', () {
+    test('formats HH:MM:SS to hh:mm dropping seconds', () {
+      expect(durationToHhMm('00:03:00'), '00:03');
+      expect(durationToHhMm('01:02:03'), '01:02');
+      expect(durationToHhMm('12:45:59'), '12:45');
+    });
+
+    test('returns 00:00 for invalid or empty input', () {
+      expect(durationToHhMm('-'), '00:00');
+      expect(durationToHhMm(null), '00:00');
+      expect(durationToHhMm(''), '00:00');
+      expect(durationToHhMm('3:00'), '00:00');
+    });
+  });
+
+  group('formatDateDdMmYyyy', () {
+    test('converts ISO to dd/mm/yyyy', () {
+      expect(formatDateDdMmYyyy('2026-08-09'), '09/08/2026');
+      expect(formatDateDdMmYyyy('2001-03-14'), '14/03/2001');
+    });
+
+    test('converts real Alpro yy.mm.dd to dd/mm/yyyy', () {
+      expect(formatDateDdMmYyyy('26.08.08'), '08/08/2026');
+    });
+
+    test('leaves unparsable input unchanged', () {
+      expect(formatDateDdMmYyyy('n/a'), 'n/a');
+      expect(formatDateDdMmYyyy(''), '');
+      expect(formatDateDdMmYyyy(null), '');
+    });
+  });
+
+  group('durationToHhMm', () {
+    test('formats HH:MM:SS to hh:mm dropping seconds', () {
+      expect(durationToHhMm('00:03:00'), '00:03');
+      expect(durationToHhMm('01:02:03'), '01:02');
+      expect(durationToHhMm('12:45:59'), '12:45');
+    });
+
+    test('returns 00:00 for invalid or empty input', () {
+      expect(durationToHhMm('-'), '00:00');
+      expect(durationToHhMm(null), '00:00');
+      expect(durationToHhMm(''), '00:00');
+      expect(durationToHhMm('3:00'), '00:00');
+    });
+  });
+
+  group('formatDateDdMmYyyy', () {
+    test('converts ISO to dd/mm/yyyy', () {
+      expect(formatDateDdMmYyyy('2026-08-09'), '09/08/2026');
+      expect(formatDateDdMmYyyy('2001-03-14'), '14/03/2001');
+    });
+
+    test('converts real Alpro yy.mm.dd to dd/mm/yyyy', () {
+      expect(formatDateDdMmYyyy('26.08.08'), '08/08/2026');
+    });
+
+    test('leaves unparsable input unchanged', () {
+      expect(formatDateDdMmYyyy('n/a'), 'n/a');
+      expect(formatDateDdMmYyyy(''), '');
+      expect(formatDateDdMmYyyy(null), '');
+    });
+  });
+
   group('buildDairySenseRows (FR-012/013/014)', () {
     test('builds rows with zero conductivity/temperature and seconds', () {
       final report = AlproReport(
@@ -130,13 +185,14 @@ void main() {
       final rows =
           BuildDairySenseRowsUseCase().call(report, report.records);
       final row = rows.first;
+      expect(row.date, '26.08.08');
       expect(row.milkingTime, 0);
       expect(row.milkYield, 0.0);
     });
   });
 
-  group('writeDairySenseXlsx (contracts §3)', () {
-    test('writes headers in exact order and readable row values', () {
+  group('writeDairySenseXlsx (official Milking Import Format)', () {
+    test('writes official headers, sheet name, and real Date/time cells', () {
       final dir = Directory.systemTemp.createTempSync('ds_writer');
       final path = p.join(dir.path, 'out.xlsx');
 
@@ -148,8 +204,18 @@ void main() {
               session: 'AM',
               unitNo: 'UNIT1',
               cowNumber: 5,
-              milkingTime: 180,
+              milkingTime: 225,
               milkYield: 12.5,
+              conductivity: 0,
+              temperature: 0,
+            ),
+            DairySenseRow(
+              date: '26.08.08',
+              session: '1',
+              unitNo: '99',
+              cowNumber: 12,
+              milkingTime: 282,
+              milkYield: 7.2,
               conductivity: 0,
               temperature: 0,
             ),
@@ -161,30 +227,88 @@ void main() {
         final excel = Excel.decodeBytes(bytes);
 
         expect(excel.tables, hasLength(1));
-        final sheet = excel.tables.keys.first;
-        final rows = excel.tables[sheet]!.rows;
+        expect(excel.tables.keys.first, 'Sayfa1');
+        final rows = excel.tables['Sayfa1']!.rows;
 
         final headers = rows.first.map((c) => c?.value?.toString()).toList();
         expect(headers, [
           'Date',
           'Session',
           'UnitNo',
-          'CowNumber',
-          'Milking Time',
+          'CowNumber - in dairysense number-',
+          'Milking Time -in seconds-',
           'Milk yield',
           'Conductivity',
           'temperature',
         ]);
 
-        final data = rows[1].map((c) => _rawValue(c)).toList();
-        expect(data[0], '2026-08-09');
-        expect(data[1], 'AM');
-        expect(data[2], 'UNIT1');
-        expect(data[3], 5);
-        expect(data[4], 180);
-        expect(data[5], 12.5);
-        expect(data[6], 0);
-        expect(data[7], 0);
+        // Row 2: date ISO, session/unit text, 225 s -> 03:45.
+        final r1 = rows[1];
+        final date1 = r1[0]!.value as DateCellValue;
+        expect(date1.asDateTimeUtc(), DateTime.utc(2026, 8, 9));
+        expect(r1[0]!.cellStyle!.numberFormat.formatCode, 'dd/mm/yyyy');
+        expect(r1[1]!.value, isA<TextCellValue>()); // 'AM' stays text
+        final t1 = r1[4]!.value as TimeCellValue;
+        expect(t1.hour, 3);
+        expect(t1.minute, 45);
+        expect(r1[4]!.cellStyle!.numberFormat.formatCode, 'hh:mm');
+        final y1 = r1[5]!.value as DoubleCellValue;
+        expect(y1.value, 12.5);
+
+        // Row 3: date yy.mm.dd, numeric session/unit, 282 s -> 04:42.
+        final r2 = rows[2];
+        final date2 = r2[0]!.value as DateCellValue;
+        expect(date2.asDateTimeUtc(), DateTime.utc(2026, 8, 8));
+        final s2 = r2[1]!.value as IntCellValue; // session '1' numeric
+        expect(s2.value, 1);
+        final u2 = r2[2]!.value as IntCellValue; // unitNo '99' numeric
+        expect(u2.value, 99);
+        final t2 = r2[4]!.value as TimeCellValue;
+        expect(t2.hour, 4);
+        expect(t2.minute, 42);
+        expect(r2[4]!.cellStyle!.numberFormat.formatCode, 'hh:mm');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('maps milking-time seconds to DairySense minutes:seconds display', () {
+      // 180 s -> 03:00, 225 s -> 03:45, 282 s -> 04:42.
+      final dir = Directory.systemTemp.createTempSync('ds_time');
+      final path = p.join(dir.path, 't.xlsx');
+      try {
+        writeDairySenseXlsx(
+          const [
+            DairySenseRow(
+                date: '26.08.08',
+                session: '1',
+                unitNo: '1',
+                cowNumber: 1,
+                milkingTime: 180,
+                milkYield: 1),
+            DairySenseRow(
+                date: '26.08.08',
+                session: '1',
+                unitNo: '2',
+                cowNumber: 2,
+                milkingTime: 225,
+                milkYield: 1),
+            DairySenseRow(
+                date: '26.08.08',
+                session: '1',
+                unitNo: '3',
+                cowNumber: 3,
+                milkingTime: 282,
+                milkYield: 1),
+          ],
+          path,
+        );
+        final rows = Excel.decodeBytes(File(path).readAsBytesSync())['Sayfa1'].rows;
+        final expected = [(3, 0), (3, 45), (4, 42)];
+        for (var i = 0; i < expected.length; i++) {
+          final t = rows[i + 1][4]!.value as TimeCellValue;
+          expect((t.hour, t.minute), expected[i]);
+        }
       } finally {
         dir.deleteSync(recursive: true);
       }
