@@ -1,17 +1,59 @@
-# alfa_milk
+# Alfa Milk — Alpro to DairySense Converter
 
-A new Flutter project.
+A Flutter desktop application that converts Alpro milking reports into DairySense-compatible XLSX import files.
+
+## Features
+
+- **Convert Reports**: Parse Alpro HTML reports and generate XLSX files ready for DairySense import.
+- **Cow List Management**: Import and persist a trusted farm cow list with automatic column detection.
+- **Missing-Cow Preview**: See which cows are in the report but not in your list before converting.
+- **Native Save Dialog**: Choose the output location and filename every time.
+
+## Project Structure
+
+```
+lib/
+  core/
+    errors/          # Failure classes and custom exceptions
+    utils/           # Shared helpers (normalizeCowNumber, durationToSeconds, etc.)
+  features/
+    home/            # Report conversion (US1, US3, US4)
+      data/          # AlproParser, DairySenseWriter, ConversionRepoImpl
+      domain/        # Entities, use cases, repo interface
+      presentation/  # Cubit, views, widgets
+    cow_list/        # Cow list management (US2)
+      data/          # CowListLoader, CowListStore
+      domain/        # CowList entity
+      presentation/  # CowListCard widget
+```
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Testing
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter test
+flutter analyze
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build
+
+```bash
+flutter build windows
+```
+
+## Documentation
+
+- [Spec](docs/spec.md) — Feature requirements and acceptance criteria
+- [File Formats](specs/001-alpro-dairysense-converter/contracts/file-formats.md) — Alpro HTML and DairySense XLSX format details
+- [Tasks](specs/001-alpro-dairysense-converter/tasks.md) — Implementation tracker
+
+## Status
+
+**Beta** — All 4 user stories implemented. XLSX format verified against real DairySense import.
+See [CHANGELOG.md](CHANGELOG.md) for details.
