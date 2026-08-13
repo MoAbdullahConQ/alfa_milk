@@ -4,12 +4,18 @@ import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:dartz/dartz.dart' show Left;
+import 'package:alfa_milk/core/errors/failures.dart';
 import 'package:alfa_milk/core/utils/app_utils.dart';
+import 'package:alfa_milk/features/home/data/data_sources/alpro_parser.dart';
 import 'package:alfa_milk/features/home/data/data_sources/dairy_sense_writer.dart';
+import 'package:alfa_milk/features/home/data/repos/conversion_repo_impl.dart';
 import 'package:alfa_milk/features/home/domain/entities/alpro_record.dart';
 import 'package:alfa_milk/features/home/domain/entities/alpro_report.dart';
+import 'package:alfa_milk/features/home/domain/entities/cow_list.dart';
 import 'package:alfa_milk/features/home/domain/entities/dairy_sense_row.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/build_dairy_sense_rows_use_case.dart';
+import 'package:alfa_milk/features/home/domain/use_cases/convert_report_use_case.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/detect_missing_cows_use_case.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/filter_records_use_case.dart';
 
@@ -314,6 +320,65 @@ void main() {
       } finally {
         dir.deleteSync(recursive: true);
       }
+    });
+  });
+
+  group('performance + no-list guard (T026, FR-018/SC-006, C1)', () {
+    test('parses/filters/builds a ~5000-record report responsively', () {
+      // Synthetic report generated in-memory per contracts file-formats.md §1.
+      final n = 5000;
+      final sb = StringBuffer()
+        ..writeln('<html><body>')
+        ..writeln('<table><tr><td>Date</td><td>2026-08-09</td></tr>')
+        ..writeln('<tr><td>Session</td><td>1</td></tr></table>')
+        ..writeln('<table>')
+        ..writeln('<tr><th>Cow No.</th><th>MPC Address</th>'
+            '<th>Milk Yield</th><th>Milk Dur.</th></tr>');
+      for (var i = 1; i <= n; i++) {
+        sb.writeln(
+            '<tr><td>$i</td><td>UNIT$i</td><td>12.5</td><td>00:03:00</td></tr>');
+      }
+      sb.writeln('</table></body></html>');
+
+      final all = {for (var i = 1; i <= n; i++) i};
+      final stopwatch = Stopwatch()..start();
+      final report = parseAlproReport(sb.toString());
+      final matched = FilterRecordsUseCase().call(report.records, all);
+      final rows = BuildDairySenseRowsUseCase().call(report, matched);
+      stopwatch.stop();
+
+      expect(report.records, hasLength(n));
+      expect(rows, hasLength(n));
+      expect(rows.first.conductivity, 0);
+      expect(rows.first.temperature, 0);
+      // Generous bound for CI; SC-006 only requires no UI freeze.
+      expect(stopwatch.elapsedMilliseconds, lessThan(5000));
+    });
+
+    test('ConvertReportUseCase with no cow list yields NoCowListFailure', () async {
+      final uc = ConvertReportUseCase(ConversionRepoImpl());
+      final result = await uc.call(
+        alproHtmlPath: 'ignored.html',
+        cowList: null,
+        outputXlsxPath: 'out.xlsx',
+      );
+      final value = (result as Left).value;
+      expect(value, isA<NoCowListFailure>());
+      expect((value as NoCowListFailure).message, contains('Import a current cow list'));
+    });
+
+    test('runConversion with an empty cow set yields NoCowListFailure '
+        '(never the FR-021 zero-match message)', () async {
+      final repo = ConversionRepoImpl();
+      final empty = CowList(
+          cowNumbers: const <int>{},
+          lastUpdated: DateTime.utc(2026, 8, 9));
+      final result = await repo.runConversion(
+        alproHtmlPath: 'ignored.html',
+        cowList: empty,
+        outputXlsxPath: 'out.xlsx',
+      );
+      expect((result as Left).value, isA<NoCowListFailure>());
     });
   });
 }
