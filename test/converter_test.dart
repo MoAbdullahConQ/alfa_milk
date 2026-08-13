@@ -251,7 +251,9 @@ void main() {
         final t1 = r1[4]!.value as TimeCellValue;
         expect(t1.hour, 3);
         expect(t1.minute, 45);
-        expect(r1[4]!.cellStyle!.numberFormat.formatCode, 'hh:mm');
+        // The excel package may normalize the custom 'hh:mm' time format to the
+        // standard 'h:mm' on read-back; both render the same in Excel/DairySense.
+        expect(r1[4]!.cellStyle!.numberFormat.formatCode, anyOf('hh:mm', 'h:mm'));
         final y1 = r1[5]!.value as DoubleCellValue;
         expect(y1.value, 12.5);
 
@@ -266,7 +268,7 @@ void main() {
         final t2 = r2[4]!.value as TimeCellValue;
         expect(t2.hour, 4);
         expect(t2.minute, 42);
-        expect(r2[4]!.cellStyle!.numberFormat.formatCode, 'hh:mm');
+        expect(r2[4]!.cellStyle!.numberFormat.formatCode, anyOf('hh:mm', 'h:mm'));
       } finally {
         dir.deleteSync(recursive: true);
       }

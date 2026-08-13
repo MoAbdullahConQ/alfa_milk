@@ -59,7 +59,7 @@ Flutter · Dart · Windows desktop · `html` (parse) · `excel` (read/write) · 
 
 ### What's actually implemented in code
 
-- **Pipeline (pure, testable, no UI):** Alpro HTML parser (header-index column mapping), cow-list loader/store (local persistence), filter by cow list, missing-cow detection, row builder (`Conductivity`/`temperature = 0`, `Milking Time` in seconds), XLSX writer (8 headers in exact order), `ConversionRepoImpl` running the pipeline in `Isolate.run`.
+- **Pipeline (pure, testable, no UI):** Alpro HTML parser (header-index column mapping), cow-list loader/store (local persistence), filter by cow list, missing-cow detection, row builder (`Conductivity`/`temperature = 0`, `Milking Time` in seconds), XLSX writer (sheet `Sayfa1`, 8 official headers, real Date cells `dd/mm/yyyy` and Time cells `hh:mm`), `ConversionRepoImpl` running the pipeline in `Isolate.run`. Generated files verified to import into DairySense.
 - **Domain:** `AlproRecord`, `AlproReport`, `CowList`, `DairySenseRow`, `ConversionResult`; use cases `FilterRecords`, `DetectMissingCows`, `BuildDairySenseRows`, `ConvertReport`.
 - **UI:** `MainScreen` shell in `lib/main.dart`; cow-list card (count + last-updated + source, Update/import, restore-after-restart); report-convert view with `Select HTML file`, `CONVERT`, summary dialog.
 - **US3 (T018):** `CONVERT` now runs a **preview** (parse + filter + detect missing) first; missing cows → `[Cancel] [Continue]` dialog (Cancel = no file, Continue = export found only); **no-cow-list guard** (`NoCowListError`) before anything; **zero-match guard** (FR-021, no file).

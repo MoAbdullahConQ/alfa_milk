@@ -172,10 +172,14 @@ picker appears every time, and the file lands only in the chosen folder.
   them, and require explicit confirmation before continuing.
 - **FR-011**: If the missing-cow warning is dismissed, the app MUST NOT create
   any output file; fake or empty rows MUST NEVER be created for missing cows.
-- **FR-012**: The app MUST generate a DairySense-format workbook containing
-  exactly the columns `Date`, `Session`, `UnitNo`, `CowNumber`,
-  `Milking Time`, `Milk yield`, `Conductivity`, `temperature`, and MUST write
-  `Conductivity` and `temperature` as `0`.
+- **FR-012**: The app MUST generate a DairySense-format workbook with one
+  sheet named `Sayfa1`, containing exactly the columns `Date`, `Session`,
+  `UnitNo`, `CowNumber - in dairysense number-`, `Milking Time -in seconds-`,
+  `Milk yield`, `Conductivity`, `temperature`, and MUST write `Conductivity`
+  and `temperature` as `0`. `Date` is a real Excel Date cell (`dd/mm/yyyy`)
+  parsed from the report and `Milking Time` a real Excel Time cell (`hh:mm`)
+  so seconds render as minutes:seconds. **Verified (2026-08-13):** generated
+  files are accepted by DairySense on import.
 - **FR-013**: The app MUST derive `Date` and `Session` from the report — never
   from the computer's clock — and MUST NOT hard-code a session value.
 - **FR-014**: The app MUST convert `Milk Dur.` from `HH:MM:SS` to total
