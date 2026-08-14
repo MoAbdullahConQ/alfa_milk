@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 import 'package:dartz/dartz.dart' show Left;
 import 'package:alfa_milk/core/errors/failures.dart';
@@ -18,6 +19,7 @@ import 'package:alfa_milk/features/home/domain/use_cases/build_dairy_sense_rows_
 import 'package:alfa_milk/features/home/domain/use_cases/convert_report_use_case.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/detect_missing_cows_use_case.dart';
 import 'package:alfa_milk/features/home/domain/use_cases/filter_records_use_case.dart';
+import 'package:alfa_milk/features/cow_list/data/cow_list_store.dart';
 
 void main() {
   group('normalizeCowNumber (FR-005)', () {
@@ -381,4 +383,112 @@ void main() {
       expect((result as Left).value, isA<NoCowListFailure>());
     });
   });
+
+  group('input non-mutation + large-list round-trip (T027, FR-019/FR-020)', () {
+    late Directory tempDir;
+    late String reportPath;
+    late String outputPath;
+
+    setUpAll(() async {
+      tempDir = await Directory.systemTemp.createTemp('t027_');
+      final html = '''
+<html><body>
+<table>
+  <tr><td>Date</td><td>2026-08-09</td></tr>
+  <tr><td>Session</td><td>1</td></tr>
+</table>
+<table>
+  <tr><th>Cow No.</th><th>MPC Address</th><th>Milk Yield</th><th>Milk Dur.</th></tr>
+  <tr><td>1</td><td>UNIT1</td><td>12.5</td><td>00:03:00</td></tr>
+</table>
+</body></html>''';
+      reportPath = '${tempDir.path}${Platform.pathSeparator}alpro_report.html';
+      File(reportPath).writeAsStringSync(html);
+    });
+
+    tearDownAll(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test('FR-019: runConversion never modifies the source HTML file', () async {
+      final sourceBytesBefore = File(reportPath).readAsBytesSync();
+      final cowList = CowList(
+        cowNumbers: const {1, 2, 3},
+        lastUpdated: DateTime.utc(2026, 8, 9),
+      );
+      outputPath = '${tempDir.path}${Platform.pathSeparator}out.xlsx';
+
+      final repo = ConversionRepoImpl();
+      final result = await repo.runConversion(
+        alproHtmlPath: reportPath,
+        cowList: cowList,
+        outputXlsxPath: outputPath,
+      );
+
+      expect(result.isRight(), isTrue);
+      expect(await File(outputPath).exists(), isTrue,
+          reason: 'output XLSX should be created');
+
+      final sourceBytesAfter = File(reportPath).readAsBytesSync();
+      expect(sourceBytesAfter, equals(sourceBytesBefore),
+          reason: 'FR-019: source HTML must not be modified');
+    });
+
+    test('FR-020: CowListStore round-trips a 5,000-cow list without error',
+        () async {
+      final original = PathProviderPlatform.instance;
+      try {
+        PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
+
+        final store = const CowListStore();
+        final bigList = CowList(
+          cowNumbers: Set<int>.from(List.generate(5000, (i) => i + 1)),
+          lastUpdated: DateTime.utc(2026, 8, 9),
+        );
+
+        await store.saveCowList(bigList);
+        final loaded = await store.getCowListFile();
+
+        expect(loaded, isNotNull);
+        expect(loaded!.cowNumbers, hasLength(5000));
+        expect(loaded.cowNumbers.contains(1), isTrue);
+        expect(loaded.cowNumbers.contains(5000), isTrue);
+      } finally {
+        PathProviderPlatform.instance = original;
+      }
+    });
+  });
+}
+
+class _FakePathProviderPlatform extends PathProviderPlatform {
+  final String _supportPath;
+
+  _FakePathProviderPlatform(this._supportPath) : super();
+
+  @override
+  Future<String?> getTemporaryPath() async => null;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => _supportPath;
+
+  @override
+  Future<String?> getLibraryPath() async => null;
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => null;
+
+  @override
+  Future<String?> getApplicationCachePath() async => null;
+
+  @override
+  Future<String?> getExternalStoragePath() async => null;
+
+  @override
+  Future<List<String>?> getExternalCachePaths() async => null;
+
+  @override
+  Future<List<String>?> getExternalStoragePaths({StorageDirectory? type}) async => null;
+
+  @override
+  Future<String?> getDownloadsPath() async => null;
 }
