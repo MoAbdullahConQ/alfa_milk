@@ -27,9 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Verified
 
 - Generated XLSX successfully imported into real DairySense software (sheet: Sayfa1, correct date/time formats, exact headers).
+- `flutter analyze` clean; `flutter test` green (51 unit tests + integration test that skips until fixtures arrive).
 
-### Known Issues
+### Pending (require Windows host / real customer files)
 
-- US2 (cow list) unit tests not yet written (T013/T016 pending).
-- Integration test (`T021`) requires real Alpro report and cow-list fixture files (not yet in repo).
+- Integration test (`T021`) lives in `test/integration_test.dart` but skips until the real `alpro_report.html`, `current_cow_list.xlsx`, and `dairy_sense_template.xlsx` fixtures are placed in `test/fixtures/`.
 - Windows build (`T024`) requires VS2022 C++ workload; manual acceptance (`T025`) walk-through pending.

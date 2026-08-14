@@ -49,8 +49,9 @@ flutter build windows
 
 ## Documentation
 
-- [Spec](docs/spec.md) — Feature requirements and acceptance criteria
+- [Spec](specs/001-alpro-dairysense-converter/spec.md) — Feature requirements and acceptance criteria
 - [File Formats](specs/001-alpro-dairysense-converter/contracts/file-formats.md) — Alpro HTML and DairySense XLSX format details
+- [Quickstart](specs/001-alpro-dairysense-converter/quickstart.md) — Build and manual acceptance walk-through
 - [Tasks](specs/001-alpro-dairysense-converter/tasks.md) — Implementation tracker
 
 ## Status
