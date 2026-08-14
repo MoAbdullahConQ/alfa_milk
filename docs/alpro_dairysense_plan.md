@@ -421,7 +421,7 @@ lib/
     │   └── presentation/
     │       ├── manager/conversion_cubit/  #   cubit + part state (Initial/Loading/Success/Failure)
     │       └── views/              #   main_screen.dart + widgets/ (cow_list_card, report_convert_view)
-    └── cow_list/                   # cow list management (US2, not yet implemented)
+    └── cow_list/                   # cow list management (US2)
 ```
 
 ### Presentation

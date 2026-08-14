@@ -2,6 +2,8 @@
 
 A Flutter desktop application that converts Alpro milking reports into DairySense-compatible XLSX import files.
 
+> **Released — v1.0.0** (tag `v1.0.0`, pushed to `origin`): all 4 user stories implemented and verified against real DairySense software. All 27 tasks complete; `flutter analyze` clean, `flutter test` green (52 passing), `flutter build windows` succeeds, and manual acceptance cases A–G passed.
+
 ## Features
 
 - **Convert Reports**: Parse Alpro HTML reports and generate XLSX files ready for DairySense import.
@@ -56,5 +58,8 @@ flutter build windows
 
 ## Status
 
-**Beta** — All 4 user stories implemented. XLSX format verified against real DairySense import.
-See [CHANGELOG.md](CHANGELOG.md) for details.
+**Released — v1.0.0** (tag `v1.0.0`, pushed to `origin`). All 4 user stories implemented and
+verified against real DairySense software. All 27 tasks in
+[`tasks.md`](specs/001-alpro-dairysense-converter/tasks.md) are complete; `flutter analyze`
+is clean, `flutter test` is green (52 passing tests), `flutter build windows` succeeds, and
+manual acceptance cases A–G passed on the built EXE. See [CHANGELOG.md](CHANGELOG.md) for details.

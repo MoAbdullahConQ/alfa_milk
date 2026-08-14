@@ -27,7 +27,7 @@ without the UI.
 | **Language/Version** | Dart, Flutter SDK `^3.x` (already `sdk: ^3.12.2` in pubspec) |
 | **Primary Dependencies** | `html` (parse report), `excel` (read cow list + write workbook), `file_picker` (file/folder/save dialogs), `path_provider` (app data dir), `path` (join paths). Add with: `flutter pub add html excel file_picker path_provider path` |
 | **Storage** | Single JSON file `cow_list.json` in `getApplicationSupportDirectory()` (no database) |
-| **Testing** | `flutter_test` only. Unit tests for pure pipeline functions; one integration test against real fixture files in `test/fixtures/` once supplied |
+| **Testing** | `flutter_test` only. Unit tests for pure pipeline functions; one integration test against real fixture files in `test/fixtures/` |
 | **Target Platform** | Windows desktop (only platform MVP requires) |
 | **Project Type** | Desktop GUI application; core conversion logic is a pure Dart library usable headless |
 | **Performance Goals** | Parse/filter/transform + write ~5,000 records; UI never frozen (one `Isolate.run` call) |
@@ -66,11 +66,10 @@ All items resolved — **no NEEDS CLARIFICATION** remains.
 | II. Cow list is a filter | Set<int> filter; never saved without validation; no cow list → no export (FR-021/NoCowListError) | ✅ PASS by design |
 | III. Deterministic pipeline, testable without Flutter | `converter.dart` + `alpro_parser.dart` + `dairy_sense_writer.dart` are pure Dart functions with no `dart:ui` import; UI only orchestrates | ✅ PASS by design |
 | IV. Fail-safe data integrity | Old list overwritten only after new one validates; missing cows force dialog; workbook built in memory, saved only after all validation; folder picked every time; typed user-friendly errors | ✅ PASS by design |
-| V. Test-first with regression fixtures | Tasks define failing tests first; integration test driven by the real fixture files; fixtures directory reserved | ✅ PASS (fixtures pending arrival) |
+| V. Test-first with regression fixtures | Tasks define failing tests first; integration test driven by the real fixture files; fixtures directory reserved | ✅ PASS (real fixtures present & verified) |
 | VI. Structure-based parsing, never invented formats | Parsing by table+headers via `package:html`; header maps derived from spec and MUST be adjusted to the real files; dependencies minimal & maintained | ✅ PASS |
 
-**Gate result: PASS.** No violations. The only caveat (fixtures absent) is
-documented as a verification step, not a design deviation.
+**Gate result: PASS.** No violations.
 
 ## Project Structure
 
@@ -129,7 +128,7 @@ test/
 ├── alpro_parser_test.dart
 ├── converter_test.dart
 ├── cow_list_test.dart     # loader + store
-├── integration_test.dart  # end-to-end with test/fixtures/* (when supplied)
+├── integration_test.dart  # end-to-end with test/fixtures/*
 └── fixtures/              # alpro_report.html, current_cow_list.xlsx, dairy_sense_template.xlsx
 ```
 

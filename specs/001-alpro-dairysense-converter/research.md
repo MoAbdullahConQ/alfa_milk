@@ -128,9 +128,9 @@ skipped.
   and `temperature` written as numeric `0`. All values written as plain
   `String`/`int`/`double` per column.
 - **Rationale**: The `excel` package writes a standard XLSX that import tools
-  read. Column names and order are fixed by FR-012; verify against the real
-  DairySense template (`test/fixtures/dairy_sense_template.xlsx`) when it
-  arrives and adjust sheet name/header row if needed.
+  read. Column names and order are fixed by FR-012; verified against the real
+  DairySense template (`test/fixtures/dairy_sense_template.xlsx`); the writer
+  constants were adjusted to match it (see §8 verification note).
 - **Alternatives considered**: Heavy styling/formatting — rejected: plain cells
   are what the import tool needs; the template verification step covers
   column-level details.

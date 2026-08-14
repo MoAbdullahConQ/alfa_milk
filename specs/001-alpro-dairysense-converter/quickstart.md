@@ -14,7 +14,7 @@ in [`data-model.md`](data-model.md).
   (`flutter config --enable-windows-desktop`).
 - Windows build toolchain (Visual Studio 2022 with "Desktop development with
   C++" workload) — required by `flutter build windows` / `flutter run -d windows`.
-- The three supplied real files, once available, placed here:
+- The three supplied real files, placed here:
 
 ```text
 test/fixtures/
@@ -25,11 +25,13 @@ test/fixtures/
 └── dairy_sense_template.xlsx # the DairySense import template (reference)
 ```
 
-> **Status (2026-08-10):** the three real Alpro report files have been added
-> and the parser was adjusted + verified against them (prefix header matching,
-> dry-cow → `0`, real Date `26.08.08` / Session `1`/`2`/`3` extraction).
+> **Status:** the three real Alpro report files were added and the parser was
+> adjusted + verified against them (prefix header matching, dry-cow → `0`, real
+> Date `26.08.08` / Session `1`/`2`/`3` extraction). The canonical fixture
+> copies shipped in `test/fixtures/` are `alpro_report.html` (147 records),
+> `current_cow_list.xlsx` (41 cows), and `dairy_sense_template.xlsx`.
 
-(Unit tests below work without them; the integration test needs them.)
+(Unit tests work without them; the integration test uses the shipped fixtures.)
 
 ## 2. Setup
 
