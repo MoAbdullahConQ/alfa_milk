@@ -33,10 +33,10 @@ without the UI.
 | **Performance Goals** | Parse/filter/transform + write ~5,000 records; UI never frozen (one `Isolate.run` call) |
 | **Constraints** | Local-only, offline, deterministic pipeline, no mapping of cow lists, no fake data, user picks output folder every time |
 | **Scale/Scope** | One active cow list, one screen, 8 output columns, ~10 source files |
-| **Open items** | The three supplied sample files are **not yet in the repo**. The contracts (`contracts/file-formats.md`) are written from the spec; when the files arrive in `test/fixtures/`, the implementer MUST verify/adjust the header maps in `alpro_parser.dart` / `dairy_sense_writer.dart` and make the integration test pass on them. This is a verification step, not a blocker for the code structure. Those provisional header variants are never authoritative (Constitution VI — see contracts §1). Performance (SC-006) and input-non-mutation (FR-019) and no-fixed-limit (FR-020) are verified by tests T026/T027, not just by design. |
+| **Open items** | **None — all resolved.** The three supplied sample files are now in `test/fixtures/` (`alpro_report.html`, `current_cow_list.xlsx`, `dairy_sense_template.xlsx`); the header maps in `alpro_parser.dart` / `dairy_sense_writer.dart` were verified against them and the integration test passes. Performance (SC-006), input-non-mutation (FR-019), and no-fixed-limit (FR-020) are verified by tests T026/T027. |
 
-**Real-file verification (2026-08-10):** the user's real Alpro HTML reports
-(`Session1 8-8.htm.html`, `Session2 7-8.htm.html`, `session 3 7-8.htm.html`)
+**Real-file verification (2026-08-10 → 2026-08-14):** the user's real Alpro HTML
+reports (`Session1 8-8.htm.html`, `Session2 7-8.htm.html`, `session 3 7-8.htm.html`)
 were provided and the parser was adjusted + verified against them: required
 headers are matched by **prefix** to tolerate a trailing sort-indicator digit
 (the `Cow No.` header renders as `cowno1`); only a truly empty yield/dur cell
@@ -44,7 +44,15 @@ is skipped, while non-numeric yield and non-time duration (`-`) are kept and
 exported as `0` (dry-cow rows); real **Date** (`26.08.08`) and **Session**
 (`1`/`2`/`3`) are extracted from the report text (label-based extraction kept
 as fallback). Results: Session1=147, Session2=127, Session3=140 records
-converted end-to-end. `flutter analyze` clean; 21 tests pass.
+converted end-to-end. The real cow-list (`current_cow_list.xlsx`, 41 cows) and
+template (`dairy_sense_template.xlsx`) files are shipped as fixtures; the
+integration test runs green on them, and generated files import into real
+DairySense (verified 2026-08-13).
+
+**Released 2026-08-14 as v1.0.0** (tag `v1.0.0`): all 27 tasks in `tasks.md`
+complete; `flutter analyze` clean; `flutter test` green (52 unit +
+integration tests, incl. T026/T027); `flutter build windows` succeeds; manual
+acceptance (quickstart §4 cases A–G) passed.
 
 All items resolved — **no NEEDS CLARIFICATION** remains.
 

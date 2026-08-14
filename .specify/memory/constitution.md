@@ -7,6 +7,10 @@ Sync Impact Report
 - Removed sections: none
 - Deferred items: none (no placeholders intentionally retained)
 - Source of adoption: docs/alpro_dairysense_plan.md
+- Project status note (2026-08-14): founding feature ratified by this
+  constitution was released as v1.0.0 — all 27 tasks in tasks.md complete,
+  quality gates green, real-file end-to-end verified. Principles unchanged;
+  no version bump required (informational only).
 -->
 # Alfa Milk Constitution
 
@@ -116,3 +120,11 @@ of requirements for the founding feature and MUST stay in sync with this
 document.
 
 **Version**: 1.0.0 | **Ratified**: 2026-08-08 | **Last Amended**: 2026-08-08
+
+**Project status**: The founding feature this constitution governs (Alpro →
+DairySense converter) was **released as v1.0.0** on 2026-08-14. All principles
+remain in force and unchanged; the quality gates below were met for the
+release (Windows build succeeds, all real files parse/import, end-to-end
+conversion passes on the supplied fixtures, and all quality gates verified
+green). See `specs/001-alpro-dairysense-converter/tasks.md` (authoritative)
+and `docs/ALFA MILK — Project Context.md`.

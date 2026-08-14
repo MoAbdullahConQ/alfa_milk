@@ -95,18 +95,18 @@ implementer: few files, few packages, no metaprogramming, no exotic APIs.
 - **Alternatives considered**: Configurable column — rejected (out of scope,
   adds UI).
 
-## 8. Alpro Report Structure (unknown until fixture arrives)
+## 8. Alpro Report Structure (resolved — fixture inspected)
 
-- **Decision**: The authoritative Alpro HTML sample file is NOT in the repo yet.
-  The parser contract (see `contracts/file-formats.md`) defines the expected
-  structure from the spec: a table whose header row contains `Cow No.`,
-  `MPC Address`, `Milk Yield`, `Milk Dur.`, plus report-level `Date` and
-  `Session` values elsewhere in the document.
-- **When the real file is provided** (place at `test/fixtures/alpro_report.html`),
-  the implementer MUST inspect it and adjust the header-name map and the
-  Date/Session search labels in `alpro_parser.dart` until the integration test
-  passes. The contract file documents where to look and how to adjust.
-- **Alternatives considered**: Guessing exact markup now — rejected
+- **Decision**: The authoritative Alpro HTML sample file was inspected and is
+  shipped at `test/fixtures/alpro_report.html`. The parser contract (see
+  `contracts/file-formats.md`) defines the structure used by `alpro_parser.dart`:
+  a table whose header row contains `Cow No.`, `MPC Address`, `Milk Yield`,
+  `Milk Dur.`, plus report-level `Date` and `Session` values elsewhere in the
+  document.
+- **Verification**: the real file was inspected and the header-name map and
+  Date/Session search in `alpro_parser.dart` were adjusted until the
+  integration test passed (see "Implemented for the real Alpro reports" below).
+- **Alternatives considered**: Guessing exact markup up front — rejected
   (Constitution Principle VI: never invent formats).
 
 ### Implemented for the real Alpro reports (2026-08-10)

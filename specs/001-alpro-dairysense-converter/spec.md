@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-08
 
-**Status**: Draft
+**Status**: Released — implemented as **v1.0.0** (tag `v1.0.0`). All 27 tasks in `tasks.md` complete; `flutter analyze` clean; `flutter test` green (52 unit + integration tests); `flutter build windows` succeeds; manual acceptance (quickstart §4 cases A–G) passed; generated files verified to import into real DairySense.
 
 **Input**: User description: "create specification and look at docs/alpro_dairysense_plan.md and constitution; make everything best practice"
 
@@ -188,9 +188,10 @@ picker appears every time, and the file lands only in the chosen folder.
   as a warning, and never guess a value.
 - **FR-015**: The app MUST prompt for the output folder on every conversion.
   The output file MUST default to a time-stamped name
-  `DairySense_Import_YYYY-MM-DD_HHmmss.xlsx`; the user MUST be able to edit
-  the file name before saving, with a warning if the edited name collides
-  with an existing file or is invalid.
+  `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx` (12-hour; e.g.
+  `DairySense_Import_2026-08-10_11.13 am.xlsx`) via the native save dialog; the
+  user MUST be able to edit the file name before saving, with a warning if the
+  edited name collides with an existing file or is invalid.
 - **FR-016**: The app MUST show a clear summary after conversion: report
   records, selected cows, cows found, and cows missing.
 - **FR-017**: The app MUST handle output failures (no permission, invalid
@@ -281,5 +282,5 @@ picker appears every time, and the file lands only in the chosen folder.
    with a user notice. (FR-004)
 2. Missing/invalid `Milk Dur.` or `Milk Yield`: skip the record, warn in the
    conversion summary, never guess. (FR-014)
-3. Output file name: default `DairySense_Import_YYYY-MM-DD_HHmmss.xlsx`,
-   user-editable before save. (FR-015)
+3. Output file name: default `DairySense_Import_<YYYY-MM-DD>_<H.mm am/pm>.xlsx`
+   (12-hour), user-editable before save. (FR-015)

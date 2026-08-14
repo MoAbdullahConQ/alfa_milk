@@ -1,11 +1,11 @@
 # Contracts: File Formats
 
-**Date**: 2026-08-09
+**Date**: 2026-08-09 (verified against real files 2026-08-10/2026-08-13)
 **Purpose**: The three external file formats the app touches, plus the local
-persistence format. The sample files are NOT in the repo yet; when they arrive
-they MUST be placed in `test/fixtures/` and used to verify/adjust these
-contracts (Constitution Principle VI). Field names are normalized: trim all
-cell text before any comparison.
+persistence format. The real sample files are shipped in `test/fixtures/`
+(`alpro_report.html`, `current_cow_list.xlsx`, `dairy_sense_template.xlsx`) and
+were used to verify/adjust these contracts (Constitution Principle VI). Field
+names are normalized: trim all cell text before any comparison.
 
 ---
 

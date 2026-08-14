@@ -1,11 +1,15 @@
 # Alpro → DairySense Milk Data Converter
 
-> **Implementation status (2026-08-10):** Phases 1–6 of the Spec Kit plan are
-> implemented (US1–US4). The real Alpro reports (`Session1 8-8`, `Session2 7-8`,
-> `session 3 7-8`) parse and convert end-to-end (147 / 127 / 140 records; Date
-> `26.08.08`; Session `1/2/3`; dry cows → `0`). Remaining work is Phase 7
-> (integration test on real fixtures, perf/non-mutation tests, quality gates).
-> See `tasks.md` (authoritative) and the Spec Kit under
+> **Implementation status (2026-08-14):** **Released as v1.0.0** (tag
+> `v1.0.0`). All phases 1–7 of the Spec Kit plan are implemented and verified
+> (US1–US4 plus integration/performance/polish). The real Alpro reports
+> (`Session1 8-8`, `Session2 7-8`, `session 3 7-8`) parse and convert
+> end-to-end (147 / 127 / 140 records; Date `26.08.08`; Session `1/2/3`; dry
+> cows → `0`). All 27 tasks in `tasks.md` are done; `flutter analyze` clean;
+> `flutter test` green (52 unit + integration tests); `flutter build windows`
+> succeeds; manual acceptance (quickstart §4 cases A–G) passed; generated
+> files verified to import into real DairySense. No implementation work
+> remains. See `tasks.md` (authoritative) and the Spec Kit under
 > `specs/001-alpro-dairysense-converter/`. Decisions marked **\[decided\]**
 > below are confirmed by implementation/real files.
 
@@ -833,10 +837,10 @@ The project should use the supplied real files as fixtures/reference material:
 - Current DairySense cow-number Excel list.
 
 The implementation must inspect the actual files and must not invent their
-structure. The Alpro reports have been inspected and the parser verified
-against them (prefix header matching, dry-cow handling, real Date/Session
-extraction); the cow-list and template files are still to be copied into
-`test/fixtures/` for the integration test.
+structure. All three real files are inspected and verified against, and are
+shipped as regression fixtures in `test/fixtures/` (`alpro_report.html`,
+`current_cow_list.xlsx`, `dairy_sense_template.xlsx`); the integration test
+runs end-to-end on them.
 
 ---
 
