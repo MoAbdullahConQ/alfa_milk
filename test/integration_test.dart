@@ -79,9 +79,10 @@ void main() {
           outputSheet.rows.first.map((d) => d?.value?.toString() ?? '').toList();
       expect(
         headerRow,
-        ['Date', 'Session', 'UnitNo', 'CowNumber', 'Milking Time',
-            'Milk yield', 'Conductivity', 'temperature'],
-        reason: 'official DairySense header order',
+        ['Date', 'Session', 'UnitNo', 'CowNumber - in dairysense number-',
+            'Milking Time -in seconds-', 'Milk yield', 'Conductivity',
+            'temperature'],
+        reason: 'verified DairySense header order (imported into real system)',
       );
 
       final dataRows = outputSheet.rows.skip(1).toList();
@@ -95,8 +96,8 @@ void main() {
           final n = int.tryParse(cowCell);
           if (n != null) exportedCows.add(n);
         }
-        // Milking Time has been converted from seconds; both present,
-        // rendering it as mm:ss. Conductivity/temperature are 0.
+        // Milking Time is converted from seconds and present.
+        // Conductivity/temperature are 0.
         final milkingTime = row.length > 4 ? row[4]?.value?.toString() : null;
         expect(milkingTime, isNotNull, reason: 'Milking Time cell present');
       }

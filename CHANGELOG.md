@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.0.0-beta] - 2026-08-14
+## [1.0.0] - 2026-08-14
 
 ### Added
 
@@ -27,9 +27,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Verified
 
 - Generated XLSX successfully imported into real DairySense software (sheet: Sayfa1, correct date/time formats, exact headers).
-- `flutter analyze` clean; `flutter test` green (51 unit tests + integration test that skips until fixtures arrive).
+- `flutter analyze` clean; `flutter test` green (52 unit + integration tests, including the fixture-based end-to-end test).
+- **T024** — Windows build verified: VS2022 C++ workload, `flutter build windows` succeeds, EXE launches.
+- **T025** — Manual acceptance A–G + edge checks all pass on the built EXE with the real customer files.
+- Real customer fixtures now shipped in `test/fixtures/`: `alpro_report.html` (147 records), `current_cow_list.xlsx` (41 cows), `dairy_sense_template.xlsx`.
 
-### Pending (require Windows host / real customer files)
+### Fixed
 
-- Integration test (`T021`) lives in `test/integration_test.dart` but skips until the real `alpro_report.html`, `current_cow_list.xlsx`, and `dairy_sense_template.xlsx` fixtures are placed in `test/fixtures/`.
-- Windows build (`T024`) requires VS2022 C++ workload; manual acceptance (`T025`) walk-through pending.
+- Integration test header assertion aligned with the verified DairySense output format (`CowNumber - in dairysense number-`, `Milking Time -in seconds-`); the test now runs green against the real fixtures.
+
+### Windows build notes
+
+- `windows/CMakeLists.txt` pins the Windows SDK to `10.0.20348.0` (the 10.0.22621.0 Desktop C++ component is incomplete).
+- `analysis_options.yaml` excludes generated `build/` and platform dirs from the analyzer.
