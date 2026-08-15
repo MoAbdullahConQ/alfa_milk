@@ -421,7 +421,7 @@ lib/
     │   └── presentation/
     │       ├── manager/conversion_cubit/  #   cubit + part state (Initial/Loading/Success/Failure)
     │       └── views/              #   main_screen.dart + widgets/ (cow_list_card, report_convert_view)
-    └── cow_list/                   # cow list management (US2)
+    └── cow_list/                   # cow list management (US2, not yet implemented)
 ```
 
 ### Presentation
@@ -864,3 +864,327 @@ The project is done when:
 - Invalid input does not crash the app.
 - Automated tests cover the transformation rules.
 - End-to-end conversion passes using the supplied sample files.
+
+---
+---
+
+# PART 2 — v1.1 "Alfa Milk Pro" Extension Plan
+
+> **Status (2026-08-14):** Planning. v1.0.0 is released, stable, and tagged
+> (`v1.0.0`, pushed to origin). Everything in Part 1 above is **historical —
+> do not edit it**; it documents what shipped in v1.0.0. This Part 2 is the
+> **new, additive plan** for the next release, tentatively `v1.1.0`
+> ("Alfa Milk Pro"). Nothing in Part 1 is being removed or redesigned —
+> v1.1 builds on top of the same Clean Architecture, same pipeline, same
+> business rules (§2 and §5 of Part 1 still apply in full, including "cow
+> list is a filter, not a mapping").
+
+## 27. Why v1.1
+
+v1.0.0 proved the core conversion pipeline works and is trusted with real
+farm data. The daily pain point that emerged from actual use is **repetition**:
+the user runs the same Alpro→XLSX conversion 3+ times per day (once per
+milking session) and then re-does a manual multi-step import into a separate
+Windows tool (`MilkIntegration.exe`) for each resulting file. v1.1 targets
+that repetition directly, plus distribution/security concerns now that the
+app is going to run on a machine the developer does not personally control
+every day.
+
+## 28. v1.1 Feature List (13 items, grouped)
+
+All 13 items below were agreed with the user. Nothing here breaks or
+contradicts the v1.0 business rules in §2/§5 (Part 1); the cow list is still
+a filter, cow count is still unbounded, Conductivity/temperature are still
+`0`, output folder is still chosen every time (or superseded by the new
+auto-import flow — see §30.2), etc.
+
+### Group A — Core time-saver (P1, build first)
+1. **Multi-session merge**: accept any number of Alpro HTML files (one per
+   milking session — today usually 3/day) in a single conversion and produce
+   **one** DairySense XLSX containing all of them, instead of converting and
+   importing each session file separately.
+2. **One-click DairySense import**: after the merged XLSX is produced, a
+   single in-app button drives `MilkIntegration.exe` end-to-end (open →
+   click "Load Milk Data" → pick the generated file → read the result dialog)
+   and reports success/failure back inside Alfa Milk, with no manual window
+   switching.
+
+### Group B — Supporting UX for Group A (P1, ships alongside A)
+3. **Drag & drop** of one or many `.html` report files (in addition to the
+   existing multi-select file picker).
+4. **Live progress panel** (replacing the current blocking spinner):
+   streams what the pipeline is doing right now ("Parsed Session 2 — 127
+   records", "Filtering by cow list…", "Writing workbook…") and — merged
+   with the old "preview before export" idea — also shows the record/cow
+   counts that will actually be exported before final confirmation.
+5. **Implausible cow-number warning**: flag (not block) any parsed cow
+   number outside a sane range (e.g. absurdly large / clearly a typo) as a
+   soft warning in the live panel and the summary, to catch data-entry
+   mistakes early. Never silently drops or "corrects" the number.
+
+### Group C — Records & safety (P2)
+6. **Conversion History**: every completed conversion is logged (timestamp,
+   number of source session files, session numbers/dates, record count,
+   output filename) and the generated XLSX itself is retained so it can be
+   re-downloaded or re-imported later without redoing the conversion.
+7. **Delete from History**: the user can remove old entries (and their
+   retained files) from inside the app.
+8. **Export History** to Excel or PDF, for sharing a record of past
+   conversions outside the app.
+9. **Automatic cow-list backup**: every time the active cow list is
+   replaced, the previous version is retained (not just overwritten), so a
+   bad update can be rolled back.
+
+### Group D — Distribution & protection (P2)
+10. **Professional installer** (Windows `.exe`/`.msix`) replacing "just copy
+    the build folder" — Start Menu entry, uninstaller, versioned.
+11. **Hardware-locked licensing**: the app binds itself to the machine it is
+    first installed on (machine fingerprint) and refuses to run if copied
+    elsewhere; the developer issues a license/activation per machine.
+
+### Group E — Look & feel polish (P3, last)
+12. **UI redesign**: clean, professional, agriculture-appropriate visual
+    identity — built *after* the functional features above, once the new
+    screens (multi-file, live panel, history, dashboard) exist to design
+    around.
+13. **Dashboard home screen**: last conversion summary, active cow-list
+    count, and a staleness warning if the cow list hasn't been updated in
+    ~30 days.
+14. **Dark mode.**
+
+### Explicitly rejected for v1.1 (asked about, declined by the user)
+- ❌ Cloud sync / login / remote database — contradicts the local-first,
+  offline, no-network constitution principle (Part 1 §I); no stated need.
+- ❌ Alpro↔DairySense cow-number mapping — confirmed still not needed; the
+  cow list remains a pure filter (Part 1 §2, non-negotiable).
+- ❌ Multiple farms / multiple saved cow lists — single farm only, now and
+  for the foreseeable future.
+
+## 29. DairySense Import Automation — Confirmed Target (`MilkIntegration.exe`)
+
+Investigated directly (screenshots supplied 2026-08-14). This is a small,
+static internal Windows tool, not DairySense itself — it is the bridge
+DairySense support already uses for importing milk data. It is simple and
+stable, which makes UI Automation the right approach (not OCR, not
+coordinate-clicking).
+
+- **Location**: `C:\Program Files (x86)\Dairysense Herd Management\Debug\MilkIntegration.exe`
+- **Window title**: "Milk importer v0.1"
+- **UI**: one window, one button — **"Load Milk Data"**.
+- **Flow**:
+  1. Launch (if not already running) → window "Milk importer v0.1" appears.
+  2. Click **Load Milk Data**.
+  3. A **standard Windows "İçe aktarılacak dosyayi seçin" (Open) dialog**
+     appears (native `GetOpenFileName`-style dialog, filter "Excel Dosyaları
+     (*.xlsx;*.xls)") — not a custom-drawn dialog, which is good for
+     automation reliability.
+  4. Type/set the generated `.xlsx` path into the "File name" field, click
+     **Open**.
+  5. A result `MessageBox` appears:
+     - Success → title **"Tamam"**, icon ℹ️, text pattern `"<N> kayıt
+       başarıyla yüklendi."` (Turkish: "N records loaded successfully.").
+       Button: OK.
+     - Failure → title **"Hata"**, icon ❌, text is the error detail (e.g.
+       `"Hata: Subquery returns more than 1 row"` seen in testing). Button: OK.
+     - **Rule of thumb (user-confirmed): any dialog title other than
+       "Tamam" is a failure** — treat generically rather than hardcoding a
+       string allowlist of error text.
+  6. Click OK to dismiss the result dialog.
+
+- **Automation approach**: Windows UI Automation (e.g. via `FlaUI` or the
+  raw `UIAutomation` COM API from a small Dart FFI/native helper, or a
+  bundled .NET helper process) — find window by title, find button by
+  `AutomationId`/name, invoke it; find the Open dialog by class
+  (`#32770`), set the filename edit control, invoke "Open"/press Enter;
+  wait for a new top-level dialog matching "Tamam" or "Hata" (or any
+  unexpected title, per the rule above), read its static text, click OK.
+  All waits are event/poll-based with a sane timeout (e.g. 15s) rather than
+  fixed sleeps, and any timeout is surfaced to the user as its own error
+  state rather than hanging.
+- **Risk (acknowledged, accepted by user)**: this is coupling to an
+  external app's UI. If `MilkIntegration.exe` is ever updated, automation
+  may break. Because the tool is small/internal and rarely changes, this
+  risk was accepted rather than falling back to "just open the app for the
+  user." Mitigation: fail loud and clear (never silently "look" successful),
+  and keep a manual fallback (open `MilkIntegration.exe` and let the user do
+  it by hand) always available as a backup path in the UI.
+- **Not yet confirmed / to verify during implementation**: exact
+  `AutomationId`s of the button/dialog controls (to be inspected with a
+  tool like `FlaUI Inspect` / Accessibility Insights once implementation
+  starts); whether multiple `MilkIntegration.exe` instances can coexist;
+  behavior if DairySense's own main app is also open at the same time.
+
+## 30. New / Changed Business Rules for v1.1
+
+These are additive to Part 1 §5 (Core Business Rules), not replacements.
+
+1. **Multi-file input is still filtered by the same single cow list.** The
+   cow list remains one active filter list, applied uniformly across every
+   session file in the batch — no per-file cow lists.
+2. **Merged output is one workbook, one sheet, same 8 columns**, sorted in a
+   defined, deterministic order (default: by report Date then Session, then
+   original row order within a session) — never silently interleaved in an
+   unpredictable way. *(Open question — see §33.)*
+3. **Missing-cow detection now spans all input files together**: a selected
+   cow is only "missing" if absent from *every* session in the batch, not
+   just one. The confirm dialog lists cows missing from the whole batch,
+   once.
+4. **Duplicate/overlapping session detection**: if two input files resolve
+   to the same (Date, Session) pair, warn the user before merging (does not
+   block by default — user can still proceed) *(open question — see §33)*.
+5. **Auto-import never replaces the "ask every time" save step**; it is an
+   additional step *after* the XLSX is saved to disk normally (Part 1 FR-015
+   still applies in full — the merged file is still saved to a
+   user-chosen folder first). Auto-import reads that same saved file.
+6. **History never silently deletes.** Retained generated files persist
+   until the user explicitly deletes the History entry; nothing is
+   auto-purged (no default TTL) in v1.1.
+7. **Cow-list backup is automatic and silent** (no extra user action) but
+   restoring a previous version is an explicit user action, never automatic.
+8. **License/hardware lock never destroys data.** A license failure blocks
+   the app from running conversions but must never delete the local cow
+   list, history, or `.xlsx` output already on disk.
+
+## 31. Architecture Additions
+
+Extends the existing feature-first Clean Architecture (Part 1 §12); no
+existing feature module is restructured.
+
+```text
+lib/
+├── features/
+│   ├── home/                       # existing (v1.0) — Alpro→DairySense pipeline
+│   │   ├── data/data_sources/      # alpro_parser.dart, dairy_sense_writer.dart
+│   │   │                           #   → parser/writer extended to accept
+│   │   │                           #     List<String> htmlPaths (multi-file)
+│   │   ├── domain/use_cases/       # + MergeReportsUseCase (new)
+│   │   └── presentation/           # + live progress panel, drag&drop dropzone
+│   ├── cow_list/                   # existing — + backup-on-save behavior
+│   ├── dairysense_import/          # NEW feature module
+│   │   ├── data/                   #   windows_ui_automation_client (FFI/process bridge)
+│   │   ├── domain/                 #   ImportResult, RunDairySenseImportUseCase
+│   │   └── presentation/           #   "Import to DairySense" button + result dialog
+│   ├── history/                    # NEW feature module
+│   │   ├── data/                   #   history_store.dart (JSON index) + retained-files dir
+│   │   ├── domain/                 #   ConversionHistoryEntry, use_cases (list/delete/export)
+│   │   └── presentation/           #   history_screen.dart (list, download, delete, export)
+│   ├── licensing/                  # NEW feature module
+│   │   ├── data/                   #   machine_fingerprint.dart, license_store.dart
+│   │   ├── domain/                 #   LicenseStatus, ValidateLicenseUseCase
+│   │   └── presentation/           #   activation/blocked screen (shown before MainScreen)
+│   └── dashboard/                  # NEW feature module (replaces plain MainScreen entry)
+│       └── presentation/           #   dashboard_screen.dart (last conversion, cow-list age, etc.)
+├── core/
+│   └── theme/                      # NEW — design tokens for the UI redesign + dark mode
+```
+
+- **Multi-file merge** lives inside the existing `home` feature (it's a
+  variant of the same pipeline, not a new domain), reusing
+  `FilterRecordsUseCase` / `DetectMissingCowsUseCase` /
+  `BuildDairySenseRowsUseCase` unchanged — only the parse step becomes "parse
+  N files, concatenate `AlproRecord`s with their source Date/Session before
+  filtering."
+- **DairySense import automation** is isolated in its own feature/module
+  specifically because it's an OS-level integration with a different failure
+  mode (external process, timeouts, window-not-found) than the rest of the
+  app, which is pure file IO. Keeping it isolated means a break here can
+  never take down the core conversion pipeline.
+- **Licensing** is checked at app startup, before `MainScreen`/`Dashboard`
+  is reachable, as its own gate screen.
+
+## 32. Proposed Phases for v1.1 (priority-ordered per user's explicit choice)
+
+User's stated priority: **"time-savers first"** — merge + auto-import,
+because they save real daily time; polish/UI last.
+
+### Phase A — Multi-session merge (Group A.1)
+- Extend `alpro_parser.dart` to accept multiple HTML file paths, tag each
+  parsed record's source session, and merge into one `AlproReport`-like
+  aggregate before filtering/writing.
+- Update `dairy_sense_writer.dart` / writer flow: unchanged output format
+  (still 8 columns, `Sayfa1`), just more rows from more sources.
+- Update missing-cow detection to span the whole batch (§30.3).
+- Tests: unit tests for the merge/aggregation step; a synthetic 3-file
+  merge test asserting row count = sum of per-file matches and correct
+  Date/Session per row.
+
+### Phase B — DairySense one-click import (Group A.2)
+- New `dairysense_import` feature module (§31).
+- Implement the UI Automation client against the confirmed flow (§29).
+- Manual fallback button ("Open MilkIntegration.exe manually") always
+  visible next to the automated one.
+- Tests: cannot be fully automated without the real exe in CI — plan for a
+  manual test checklist (quickstart-style) plus any unit tests possible
+  around the result-parsing logic (e.g. parsing "N kayıt başarıyla
+  yüklendi." → success count) in isolation.
+
+### Phase C — Supporting UX (Group B)
+- Drag & drop (`desktop_drop` or equivalent).
+- Live progress panel + merged preview-before-export.
+- Implausible-cow-number soft warning.
+- These naturally piggyback on Phase A's new multi-file flow.
+
+### Phase D — History & data safety (Group C)
+- `history` feature module: log entry per conversion, retained file storage,
+  list/download/delete UI.
+- History export (Excel/PDF).
+- Cow-list automatic backup-on-replace.
+
+### Phase E — Distribution & protection (Group D)
+- Installer packaging (Inno Setup or MSIX).
+- `licensing` feature module: machine fingerprint, activation gate,
+  license issuance process (developer-side tooling, not just in-app).
+
+### Phase F — Look & feel (Group E, last, per user priority)
+- Design tokens / theme rework for a clean, professional, agriculture-
+  appropriate look.
+- Dashboard home screen.
+- Dark mode.
+
+## 33. Open Questions for v1.1 (to resolve before/at start of each phase)
+
+1. **Merged-row ordering** (§30.2): confirm default sort — by Date+Session,
+   or strictly by the order files were added/dropped?
+2. **Duplicate (Date, Session) across two input files** (§30.4): warn-and-
+   allow (default assumed) or hard-block?
+3. **`MilkIntegration.exe` control identifiers**: exact `AutomationId`s /
+   class names for the button and dialogs — to be captured with an
+   inspector tool at the start of Phase B.
+4. **License issuance workflow**: how does the developer generate/deliver a
+   license key per machine in practice (manual email exchange, a small
+   companion CLI, etc.)? Needs a concrete process, not just the in-app
+   validation side.
+5. **History retention limits**: no TTL/auto-purge in v1.1 (§30.6) — confirm
+   this remains fine even after months of daily use (disk usage growth of
+   retained `.xlsx` files), or whether a manual "clear old entries" bulk
+   action should be added later.
+
+## 34. Non-Goals for v1.1 (reaffirmed / new)
+
+Carried over from Part 1 §10, still non-goals: modifying Alpro/DairySense
+itself, cloud sync/login/database, herd sync, Alpro↔DairySense number
+mapping, invented conductivity/temperature values, manual mapping config.
+
+Newly declined for v1.1 specifically (§28, "Explicitly rejected"):
+multiple farms / multiple cow lists.
+
+## 35. Definition of Done for v1.1
+
+- User can drag/select any number of Alpro HTML session files and get one
+  merged DairySense XLSX, sorted deterministically, with all v1.0 business
+  rules (filter-not-mapping, missing-cow confirmation spanning the batch,
+  no fake rows, Conductivity/temperature = 0, folder chosen every time)
+  still holding.
+- User can click one button after saving the merged file and have it
+  imported into DairySense via `MilkIntegration.exe` automatically, with a
+  clear success/failure result shown in Alfa Milk — and a manual fallback
+  always available if automation fails.
+- Every conversion appears in History with enough detail to identify it
+  later, is re-downloadable, and is deletable; History is exportable.
+- Cow-list updates are automatically backed up before being replaced.
+- The app ships as a proper Windows installer and refuses to run on a
+  machine it wasn't licensed/activated for, without ever destroying local
+  data if the license check fails.
+- The UI has been redesigned (clean, professional, agricultural) with a
+  working dashboard and dark mode, built around the finished functional
+  features above — not before them.
