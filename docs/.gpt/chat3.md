@@ -1,5 +1,12 @@
 # ALFA MILK — Full Project Handoff Summary (v1.0.0 Released)
 
+> **Historical snapshot — do not treat as current.** This file records the state at the
+> v1.0.0 release. Its "no outstanding functional work" conclusion was superseded on
+> **2026-09-02**: post-1.0.0 work is planned in **Part 2 of
+> `docs/alpro_dairysense_plan.md`** as eight independently shippable releases (v1.1.0 →
+> v1.8.0) plus a non-shippable `MilkIntegration.exe` spike. For current status read
+> `docs/.gpt/ALFA MILK — Project Context.md`; for what to build next read plan §32.
+
 ## Project
 
 **Name:** Alfa Milk

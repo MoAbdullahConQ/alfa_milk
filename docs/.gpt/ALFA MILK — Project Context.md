@@ -13,7 +13,8 @@
 - **Architecture:** feature-first Clean Architecture (`features/*/{data,domain,presentation}`) + shared `core/`; `flutter_bloc` Cubit for state; `dartz.Either<Failure, T>` at the data/domain boundary.
 - **Status:** **Released as v1.0.0** (tag `v1.0.0`). All phases 1–7 complete (Setup, Foundation, US1–US4, integration/performance/polish).
 - **Progress:** **27 of 27 tasks done** (see `tasks.md`). `flutter analyze` clean; `flutter test` green (52 unit + integration tests); `flutter build windows` succeeds; manual acceptance (quickstart §4 cases A–G) passed.
-- **Real files verified:** the user's real Alpro reports (`Session1 8-8`, `Session2 7-8`, `session 3 7-8`) parse and convert end-to-end (147 / 127 / 140 records) with real Date `26.08.08` and Session `1/2/3`; dry-cow rows export as `0`.
+- **What comes next:** everything after v1.0.0 lives in **Part 2 of `docs/alpro_dairysense_plan.md`**, restructured into **eight independently shippable releases plus one non-shippable spike**: v1.1.0 distribution & cow-list durability → v1.2.0 multi-session merge → v1.3.0 live progress & drag and drop → v1.4.0 history/ledger/workbook inspector → **Phase 5S** `MilkIntegration.exe` spike → v1.5.0 one-click import → v1.6.0 history polish → v1.7.0 licensing → v1.8.0 UI redesign. **No post-1.0.0 code has been written yet** (§4).
+- **Real files verified:** the user's real Alpro reports (`Session1 8-8`, `Session2 7-8`, `session 3 7-8`) parse and convert end-to-end (147 / 127 / 140 records) with real Date `26.08.08` and Session `1/2/3`; dry-cow rows export as `0`. Note these three **span two dates** — the reason acceptance cases H–K matter (§12).
 - **Bug fixed (US4/T019):** the convert step no longer writes over the source report path — a native save dialog asks for the destination every time, and cancelling resets the UI cleanly.
 
 ---
@@ -54,7 +55,7 @@ Flutter · Dart · Windows desktop · `html` (parse) · `excel` (read/write) · 
 
 ### Task list (authoritative: `tasks.md`)
 
-- **Done (27 of 27):** T001–T027. No implementation work remains.
+- **Done (27 of 27):** T001–T027. No **v1.0.0** implementation work remains; post-1.0.0 work is planned in plan §32 and **not started** (§4). `tasks.md` covers v1.0.0 only.
 
 ### What's actually implemented in code
 
@@ -69,11 +70,23 @@ Flutter · Dart · Windows desktop · `html` (parse) · `excel` (read/write) · 
 
 ## 4. Next Action (post-release)
 
-**No implementation work remains** — v1.0.0 is released (tag `v1.0.0`, all 27 tasks done, quality gates green). Any future session is optional polish or new work:
+**v1.0.0 is done** (all 27 tasks, quality gates green) and **no v1.1+ code exists yet**. The next work is not "optional polish" any more: Part 2 of `docs/alpro_dairysense_plan.md` is the authoritative plan for it — §32 per-phase scope + Definition of Done, §35 DoD roll-up, §36 requirement→phase traceability, §37 defect register D1–D15.
 
-1. **Release hygiene:** the `v1.0.0` release commit and tag are currently **local only** (branch is 1 commit ahead of `origin/main`). Publish when the team chooses — do not push without explicit instruction.
-2. **Housekeeping:** keep `flutter analyze` / `flutter test` green after any change.
-3. **Future work candidates (out of MVP scope):** drag-and-drop report loading, cloud sync/login/database, herd sync, number mapping — all non-goals per §10.
+**Start here: v1.1.0 — "Distribution & cow-list durability."** It is the only release with no open dependency, so it can begin immediately:
+
+- Inno Setup installer (unsigned; the SmartScreen click-through is documented, not hidden).
+- Fixed machine-wide data root `%ProgramData%\AlfaMilk\` (§30.15), with a one-time **copy**-migration out of `getApplicationSupportDirectory()` — the old file is copied, never moved.
+- Atomic JSON writes (temp → `rename`) keeping a `.bak` of the last good list, plus **Restore previous list…** (§31.3).
+- Nullable `lastUpdated` (so a restored/migrated list can say "unknown" rather than lie) + a ~30-day staleness warning; implausible-cow-number check on import.
+- A rolling local support log (no network, ever — see §10 and plan §34).
+
+Release order after that: v1.2.0 merge → v1.3.0 progress & drag-and-drop → v1.4.0 history/ledger/inspector → **Phase 5S spike** → v1.5.0 one-click import → v1.6.0 history polish → v1.7.0 licensing → v1.8.0 UI redesign (last by design). Two of these are gated — see §12.
+
+**Release hygiene:** as of 2026-09-02 the local `main` is **5 commits ahead of the last-known `origin/main`** (`ccb229a`), all of them documentation. The `v1.0.0` tag exists locally; remote state was not checked (offline). **Do not push without explicit instruction.**
+
+**Housekeeping:** keep `flutter analyze` / `flutter test` green after any change.
+
+**Note:** drag-and-drop is **no longer a non-goal** — it is v1.3.0 scope. Still non-goals, and reaffirmed by plan §34: cloud sync / login / any network access, herd sync, Alpro↔DairySense number mapping, multiple farms or cow lists, invented conductivity/temperature values, rollback of an external import.
 
 **Do not** restart Spec Kit from scratch, redesign the architecture, hard-code cow counts, or invent real-file structures.
 
@@ -162,7 +175,7 @@ lib/
 
 **Error flow:** data source throws typed exception → `ConversionRepoImpl` catches → maps to `Failure` → returns `Either<Failure, T>` → use case/Cubit → UI. Never show raw stack traces.
 
-**Persistence:** `getApplicationSupportDirectory()/cow_list.json` (cow numbers + last-updated). Survives restart.
+**Persistence:** `getApplicationSupportDirectory()/cow_list.json` (cow numbers + last-updated). Survives restart. *(v1.1.0 moves this to a fixed `%ProgramData%\AlfaMilk\` with atomic writes and a `.bak` — plan §30.15 / §31.3. Not implemented yet.)*
 
 ---
 
@@ -179,6 +192,8 @@ lib/
 ## 10. MVP Non-Goals
 
 Modifying Alpro/DairySense, cloud sync/login/database, herd sync, number mapping, automatic output-folder selection, invented conductivity/temperature values, manual mapping config.
+
+For v1.1+ the list is restated and extended in plan **§34**: no network access of any kind (licensing included), no rollback of an external import, no cloud/online licence activation, no per-user data separation (`%ProgramData%\AlfaMilk\` is machine-wide by design), no multiple farms or cow lists. Drag-and-drop moved *out* of non-goals and into v1.3.0.
 
 ---
 
@@ -202,29 +217,38 @@ Real supplied files to obtain and inspect: **Alpro HTML report**, **DairySense i
 
 Resolved items take precedence via the artifacts/implementation.
 
+### Still open after v1.0.0 (only two — both owned, neither left to implementation time)
+
+1. **Multi-date workbook acceptance — acceptance cases H–K. Blocks v1.2.0.** Does real DairySense accept **one workbook spanning more than one date**, attribute rows to the correct date *and* session (**I**), tolerate the same workbook imported twice (**J**, which also gates part of v1.5.0's `unknown` outcome), and reject the same cow twice in one `(Date, Session)` with `Hata: Subquery returns more than 1 row` (**K**)? It matters immediately because the three real reports span two dates. **No new code is needed** — the procedure is defined in plan §33.5, which is also where it says to record the outcome (as cases H–K in the quickstart, with the verified date in `contracts/file-formats.md`); neither file carries them yet. If DairySense rejects it, the merge design becomes one workbook per date.
+2. **The `MilkIntegration.exe` control tree — owned by Phase 5S.** The spike answers plan §29.8's six unknowns on the real machine and decides whether v1.5.0's automation is Win32 window messaging (Tier 1) or `IUIAutomation` COM (Tier 2). It ships no product code.
+
+Questions that *were* open in the v1.1 planning and are now **answered in plan §33** (do not re-litigate them): the data-root location (§33/§30.15 → `%ProgramData%\AlfaMilk\`), duplicate `(date, session)` handling (hard block, §33.2), licence states (two only: `licensed` / `blocked`, §33.4), and history retention (two caps, and it always asks, §33.6).
+
 ---
 
 ## 13. Definition of Done (MVP complete when)
 
 Windows build succeeds; supplied Alpro parses; supplied cow list imports; any valid list size works; only selected cows exported; missing cows require confirmation; latest valid list persists; new list replaces old; failed update preserves old; correct workbook structure; `Conductivity=0`, `temperature=0`; duration→seconds correct; output folder chosen every time; invalid input never crashes; automated tests cover core rules; end-to-end conversion passes on real files; final quality gates pass.
 
+**All of the above stays in force for every later release.** Each of v1.1.0–v1.8.0 adds its own Definition of Done on top; they are listed per phase in plan §32 and rolled up in **§35**.
+
 ---
 
 ## 14. How an Agent Should Continue
 
 1. Read this file (orientation).
-2. Read authoritative Spec Kit files: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` (under `specs/001-alpro-dairysense-converter/`).
+2. Read authoritative Spec Kit files: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` (under `specs/001-alpro-dairysense-converter/`) — these are the **released v1.0.0 record**; for anything after v1.0.0 read **Part 2 of `docs/alpro_dairysense_plan.md`** (Part 1 is historical and must not be edited).
 3. Inspect repo: `git status`, `lib/`, `test/`, `pubspec.yaml`.
 4. Read `tasks.md` and trust its `[ ]`/`[X]` state over this file.
 5. Inspect real fixtures before assuming file formats; don't invent them.
-6. All tasks (T001–T027) are complete — there is no incomplete task. Treat any future work as optional polish/new scope (§4).
+6. All v1.0.0 tasks (T001–T027) are complete. Post-1.0.0 work is **not** optional polish — it is the eight planned releases in plan §32; start at v1.1.0 (§4) and respect the two gates in §12.
 7. Run `flutter analyze` + `flutter test` after each change; keep them green.
 
 ### Source-of-truth hierarchy
 
 ```text
 1. Actual repository implementation/files
-2. Current Spec Kit artifacts
+2. Current Spec Kit artifacts (v1.0.0) + Part 2 of docs/alpro_dairysense_plan.md (v1.1.0→v1.8.0)
 3. Actual supplied fixtures
 4. This project-context file
 5. Older summaries / conversations
@@ -232,4 +256,4 @@ Windows build succeeds; supplied Alpro parses; supplied cow list imports; any va
 
 ---
 
-*Last updated: 2026-08-14 (v1.0.0 release).*
+*Last updated: 2026-09-02 (docs reconciled to Part 2's eight-release plan; code still at v1.0.0).*

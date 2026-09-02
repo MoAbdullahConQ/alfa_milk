@@ -1,5 +1,10 @@
 # Project Handoff Summary — Alpro → DairySense Flutter Converter
 
+> **Historical snapshot — do not treat as current.** This is the original pre-implementation
+> handoff. The app it describes shipped as **v1.0.0**; work after that is planned in **Part 2
+> of `docs/alpro_dairysense_plan.md`** (eight releases v1.1.0 → v1.8.0 plus a spike). For
+> current status read `docs/.gpt/ALFA MILK — Project Context.md`. *(Banner added 2026-09-02.)*
+
 ## Project Goal
 
 I am building a **Flutter desktop application**, mainly targeting **Windows**, that acts as a bridge between two existing systems:

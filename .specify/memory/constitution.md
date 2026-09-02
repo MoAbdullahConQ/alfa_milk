@@ -127,4 +127,7 @@ remain in force and unchanged; the quality gates below were met for the
 release (Windows build succeeds, all real files parse/import, end-to-end
 conversion passes on the supplied fixtures, and all quality gates verified
 green). See `specs/001-alpro-dairysense-converter/tasks.md` (authoritative)
-and `docs/ALFA MILK — Project Context.md`.
+and `docs/.gpt/ALFA MILK — Project Context.md`. Post-v1.0.0 work is planned in
+Part 2 of `docs/alpro_dairysense_plan.md` (eight releases plus one spike);
+nothing in that plan amends this constitution — every principle above applies
+unchanged to each release.

@@ -6,9 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A local-first Flutter **Windows desktop** app that converts an **Alpro** milking report (HTML)
 into a **DairySense** import workbook (XLSX), filtered by a user-managed cow-number list.
-No backend, no network, no login. Released as **v1.0.0**; the v1.1 plan ("Alfa Milk Pro":
-multi-session merge, `MilkIntegration.exe` automation, history, licensing) is Part 2 of
-`docs/alpro_dairysense_plan.md`.
+No backend, no network, no login. Released as **v1.0.0**.
+
+Everything after v1.0.0 is planned in Part 2 of `docs/alpro_dairysense_plan.md` as **eight
+independently shippable releases plus one non-shippable spike** — v1.1.0 distribution &
+cow-list durability, v1.2.0 multi-session merge, v1.3.0 live progress & drag and drop,
+v1.4.0 history/ledger/workbook inspector, the Phase 5S `MilkIntegration.exe` spike, v1.5.0
+one-click DairySense import, v1.6.0 history polish, v1.7.0 licensing, v1.8.0 UI redesign
+(deliberately last). **No post-1.0.0 code exists yet**, so treat Part 2 as the spec, not as a
+description of the tree.
 
 ## Commands
 
@@ -104,10 +110,25 @@ The repo is driven by Spec Kit (`.specify/`, `.opencode/commands/speckit.*`).
 
 - `.specify/memory/constitution.md` — governing principles; tops all other practices.
 - `specs/001-alpro-dairysense-converter/` — authoritative artifacts: `spec.md`, `plan.md`,
-  `data-model.md`, `contracts/file-formats.md`, `quickstart.md` (manual acceptance cases A–G),
-  and `tasks.md` (the authoritative task tracker — all 27 done).
+  `data-model.md`, `contracts/file-formats.md`, `quickstart.md` (manual acceptance cases A–G,
+  shipped in v1.0.0), and `tasks.md` (the
+  authoritative v1.0.0 task tracker — all 27 done). These are **released records** for
+  v1.0.0; don't retrofit post-1.0.0 scope into them.
 - `contracts/file-formats.md` must be updated whenever an input/output format understanding
   changes; it records what was verified against real files and when.
-- `docs/alpro_dairysense_plan.md`: **Part 1 is historical — do not edit it**; Part 2 is the v1.1
-  plan. Orientation notes live in `docs/.gpt/` (other docs refer to
-  `docs/ALFA MILK — Project Context.md`; the file actually sits under `docs/.gpt/`).
+- `docs/alpro_dairysense_plan.md`: **Part 1 is historical — do not edit it**; Part 2 is the
+  authoritative v1.1.0 → v1.8.0 plan. Inside Part 2: §32 has the per-phase scope and
+  Definition of Done, §35 the DoD roll-up, §36 the requirement→phase traceability, §37 the
+  defect register (D1–D15). Orientation notes live in `docs/.gpt/` — the living one is
+  `docs/.gpt/ALFA MILK — Project Context.md`; `chat3.md` and the `chat 1 …` handoff beside it
+  are historical snapshots, banner-marked as such.
+
+Two gates are open and must not be answered by guessing at implementation time:
+
+- **Acceptance cases H–K** — does real DairySense accept one workbook spanning more than one
+  date, and attribute rows to the right date and session? This **blocks v1.2.0**. The
+  procedure is defined in plan §33.5, needs no new code, and is not yet recorded in the
+  v1.0.0 quickstart.
+- **The `MilkIntegration.exe` control tree** — owned by the Phase 5S spike, which answers
+  §29.8's six unknowns on the real machine and decides Win32 window messaging vs
+  `IUIAutomation` COM for v1.5.0.
